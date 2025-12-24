@@ -1,0 +1,1621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NXT/WebXR</title>
+    <link rel="icon" href="favicon1.svg" type="image/svg+xml">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/1.0.2/ua-parser.min.js"></script>
+    <style>
+        body {
+            background-color: black;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+        }
+
+        .hidden { display: none; }
+
+        .fade-out { animation: fadeOut 0.5s ease-in-out forwards; }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* --- Landing Page Styles --- */
+        #intro-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 1);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        #intro-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            color: white;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100%; 
+        }
+
+        #overlay-logo {
+            width: 50%;
+            max-width: 220px;
+            height: auto;
+            margin-bottom: 20px;
+            animation: hopIn 1s ease-out;
+        }
+
+        @keyframes hopIn {
+            0% { transform: translateY(-50px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        #intro-content h1 {
+            margin-bottom: 20px;
+            font-size: 32px;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        #intro-content p {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 40px;
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        #intro-bottom-buttons {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 10px;
+            z-index: 30;
+        }
+
+        /* --- Tunnel Animation --- */
+        .tunnel-wrapper {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            perspective: 1000px;
+            overflow: hidden;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .tunnel-wrapper .square {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            /* Optimized initial state */
+            transform: translate(-50%, -50%) translateZ(-1000px) scale(0);
+            opacity: 0;
+            width: 200vmax;
+            height: 200vmax;
+            border: 2px solid white;
+            box-shadow: 0px 60px 140px white;
+            backface-visibility: hidden;
+            border-radius: 15%;
+            /* will-change hints the browser to optimize rendering, reducing stutter */
+            will-change: transform, opacity;
+            animation: move-animation 12s infinite linear;
+        }
+
+        @keyframes move-animation {
+            0% { opacity: 0; transform: translate(-50%, -50%) translateZ(-1000px) scale(0); }
+            5% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { opacity: 0; transform: translate(-50%, -50%) translateZ(1000px) scale(1.5); }
+        }
+
+        /* --- Button Styling --- */
+        :root {
+            --glow-hue: 222deg;
+            --shadow-hue: 180deg;
+            --spring-easing: linear(0, 0.002, 0.01 0.9%, 0.038 1.8%, 0.156, 0.312 5.8%, 0.789 11.1%, 1.015 14.2%, 1.096, 1.157, 1.199, 1.224 20.3%, 1.231, 1.231, 1.226, 1.214 24.6%, 1.176 26.9%, 1.057 32.6%, 1.007 35.5%, 0.984, 0.968, 0.956, 0.949 42%, 0.946 44.1%, 0.95 46.5%, 0.998 57.2%, 1.007, 1.011 63.3%, 1.012 68.3%, 0.998 84%, 1);
+            --spring-duration: 1.33s;
+        }
+
+        @property --shimmer {
+            syntax: "<angle>";
+            inherits: false;
+            initial-value: 33deg;
+        }
+
+        @keyframes shimmer {
+            0% { --shimmer: 0deg; }
+            100% { --shimmer: 360deg; }
+        }
+
+        .styled-button {
+            position: relative;
+            padding: 12px 24px;
+            background-color: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 30px;
+            font-size: 18px;
+            color: white;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all var(--spring-duration) var(--spring-easing);
+            isolation: isolate;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.2);
+            transform: scale(1);
+        }
+
+        .styled-button:hover:not(:active), .styled-button.active {
+            transition-duration: calc(var(--spring-duration) * 0.5);
+            transform: scale(1.1);
+            background-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3), inset 0 0 0 transparent;
+        }
+
+        .styled-button:active {
+            transform: scale(1.05);
+            transition-duration: calc(var(--spring-duration) * 0.5);
+        }
+
+        .styled-button .shimmer {
+            position: absolute;
+            inset: -20px;
+            border-radius: inherit;
+            mask-image: conic-gradient(from var(--shimmer, 0deg), transparent 0%, transparent 10%, black 36%, black 45%, transparent 50%, transparent 60%, black 85%, black 95%, transparent 100%);
+            mask-size: cover;
+            mix-blend-mode: plus-lighter;
+            animation: shimmer 1s linear infinite both;
+            pointer-events: none;
+        }
+
+        .styled-button .shimmer::before, .styled-button .shimmer::after {
+            transition: all 0.5s ease;
+            opacity: 0;
+            content: "";
+            border-radius: inherit;
+            position: absolute;
+            mix-blend-mode: color;
+            inset: 20px;
+            pointer-events: none;
+        }
+
+        .styled-button .shimmer::before {
+            box-shadow: 0 0 3px 2px hsl(var(--glow-hue) 20% 95%), 0 0 7px 4px hsl(var(--glow-hue) 20% 80%), 0 0 13px 4px hsl(var(--glow-hue) 50% 70%), 0 0 25px 5px hsl(var(--glow-hue) 100% 70%);
+            z-index: -1;
+        }
+
+        .styled-button .shimmer::after {
+            box-shadow: inset 0 0 0 1px hsl(var(--glow-hue) 70% 95%), inset 0 0 2px 1px hsl(var(--glow-hue) 100% 80%), inset 0 0 5px 2px hsl(var(--glow-hue) 100% 70%);
+            z-index: 2;
+        }
+
+        .styled-button .text { 
+            color: white; 
+            font-weight: 500;
+        }
+
+        /* --- AR UI --- */
+        #webxr-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            z-index: 10;
+            display: none;
+        }
+
+        #status {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 10, 10, 0.85);
+            color: white;
+            padding: 12px 24px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 30px;
+            font-size: 14px;
+            font-weight: 400;
+            display: none;
+            z-index: 9999;
+            backdrop-filter: blur(10px);
+            letter-spacing: 0.5px;
+        }
+
+        .exit-ar {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .xr-active .exit-ar { display: flex; }
+
+        video {
+            display: block;
+            width: 1px;
+            height: 1px;
+            position: absolute;
+            opacity: 0.01;
+            pointer-events: none;
+        }
+
+        #back-to-intro {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 9999;
+            backdrop-filter: blur(5px);
+        }
+
+        .xr-active #back-to-intro { display: flex; }
+
+        #safety-timer { display: none; }
+
+        @media (max-width: 600px) {
+            #overlay-logo {
+                width: 40%;
+                max-width: 160px;
+            }
+            #intro-content h1 { font-size: 24px; }
+            #intro-content p { font-size: 14px; }
+            .styled-button {
+                font-size: 16px;
+                padding: 10px 20px;
+            }
+            #intro-bottom-buttons {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="intro-overlay">
+        <div class="tunnel-wrapper"></div>
+        <div id="intro-content">
+            <img id="overlay-logo" src="icon2.png" alt="Logo">
+            <h1>Welcome to NXT/WebXR</h1>
+            <p><strong>No downloads, no payments — just dive right in.</strong> Pinch to browse through a variety of XR games and experiences. Clap your hands together to jump straight in. Once you've finished, return to continue exploring. <em>Discover, experience, repeat—the rabbit hole has no end.</em></p>
+            
+            <div id="intro-bottom-buttons">
+                <button id="start-button" class="styled-button">
+                    <span class="text">Explore WebXR</span>
+                    <div class="shimmer"></div>
+                </button>
+                <button id="open-on-quest-button" class="styled-button">
+                    <span class="text">Open on Quest</span>
+                    <div class="shimmer"></div>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="webxr-container">
+        <button class="exit-ar" id="exit-ar">×</button>
+        <button id="back-to-intro">←</button>
+        <div id="status"></div>
+        <audio id="clap-sound" src="sound1.wav" preload="auto"></audio>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const tunnelWrapper = document.querySelector('.tunnel-wrapper');
+            // FIX: Using 6 squares with a 12s animation.
+            // 12s / 6 = 2000ms delay per square for perfect loop without stutter.
+            for (let i = 0; i < 6; i++) {
+                const square = document.createElement('div');
+                square.classList.add('square');
+                square.style.animationDelay = `${i * 2000}ms`; // Exactly 2 seconds spacing
+                tunnelWrapper.appendChild(square);
+            }
+
+            const introOverlay = document.getElementById('intro-overlay');
+            const startButton = document.getElementById('start-button');
+            const openOnQuestButton = document.getElementById('open-on-quest-button');
+            const webxrContainer = document.getElementById('webxr-container');
+            const backToIntroButton = document.getElementById('back-to-intro');
+
+            function isQuestHeadset() {
+                const parser = new UAParser();
+                const result = parser.getResult();
+                return result.browser.name?.includes('OculusBrowser') || result.device.model?.includes('Quest');
+            }
+
+            function sendLinkToQuest(linkUrl) {
+                if (!linkUrl.startsWith('https://')) {
+                    alert('Error: The URL must start with "https://".');
+                    return;
+                }
+                window.location.href = `https://www.oculus.com/open_url/?url=${encodeURIComponent(linkUrl)}`;
+            }
+
+            if (isQuestHeadset()) {
+                openOnQuestButton.style.display = 'none';
+            } else {
+                openOnQuestButton.addEventListener('click', () => sendLinkToQuest(window.location.href));
+            }
+
+            startButton.addEventListener('click', () => {
+                // Initialize audio system IMMEDIATELY on user gesture
+                if (!videoPanel) {
+                    videoPanel = new VideoPanelSystem();
+                }
+                videoPanel.resumeAudioContext();
+
+                introOverlay.classList.add('fade-out');
+                setTimeout(() => {
+                    introOverlay.style.display = 'none';
+                    webxrContainer.style.display = 'block';
+                    initWebXR();
+                    setTimeout(startARSession, 100);
+                }, 500);
+            });
+
+            backToIntroButton.addEventListener('click', () => {
+                if (xrSession) xrSession.end();
+                webxrContainer.classList.add('fade-out');
+                setTimeout(() => {
+                    webxrContainer.style.display = 'none';
+                    introOverlay.style.display = 'flex';
+                    introOverlay.classList.remove('fade-out');
+                    introOverlay.classList.add('fade-in');
+                    cleanupWebXR();
+                }, 500);
+            });
+        });
+
+        let camera, scene, renderer, controllers = [], xrSession = null, raycaster, tempMatrix, videoPanel;
+        let clapTransitionTriggered = false;
+        let currentVideoForRedirect = null, sessionStartTime = 0;
+        let lastClapDistance = null;
+        let lastClapTime = 0;
+
+        class Tween {
+            constructor(object, property, startValue, endValue, duration, easing, onComplete) {
+                this.object = object;
+                this.property = property;
+                this.startValue = startValue;
+                this.endValue = endValue;
+                this.duration = duration;
+                this.startTime = null;
+                this.isActive = true;
+                this.easing = easing || Tween.easeOutCubic;
+                this.onComplete = onComplete;
+            }
+            
+            static easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
+            static easeOutElastic(t) { return Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3) + 1; }
+            static easeInExpo(t) { return t === 0 ? 0 : Math.pow(2, 10 * t - 10); }
+            static easeInOutSine(t) { return -(Math.cos(Math.PI * t) - 1) / 2; }
+            
+            update(currentTime) {
+                if (!this.isActive) return true;
+                if (this.startTime === null) this.startTime = currentTime;
+                
+                const elapsed = currentTime - this.startTime;
+                const progress = Math.min(elapsed / this.duration, 1);
+                const easedProgress = this.easing(progress);
+                
+                if (typeof this.property === 'string') {
+                    this.object[this.property] = this.startValue + (this.endValue - this.startValue) * easedProgress;
+                } else if (Array.isArray(this.property)) {
+                    let target = this.object;
+                    for (let i = 0; i < this.property.length - 1; i++) target = target[this.property[i]];
+                    target[this.property[this.property.length - 1]] = this.startValue + (this.endValue - this.startValue) * easedProgress;
+                }
+                
+                if (progress >= 1) {
+                    this.isActive = false;
+                    if (this.onComplete) this.onComplete();
+                    return true;
+                }
+                return false;
+            }
+        }
+        
+        class TweenManager {
+            constructor() { this.tweens = []; }
+            add(tween) { this.tweens.push(tween); return tween; }
+            update(currentTime) {
+                let i = this.tweens.length;
+                while(i--) if (this.tweens[i].update(currentTime)) this.tweens.splice(i, 1);
+            }
+            clear() { this.tweens = []; }
+        }
+        
+        const tweenManager = new TweenManager();
+
+        function initWebXR() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 20);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            renderer.setClearColor(0x000000, 0);
+            
+            document.getElementById('webxr-container').appendChild(renderer.domElement);
+            scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+            
+            raycaster = new THREE.Raycaster();
+            tempMatrix = new THREE.Matrix4();
+            
+            // Ensure videoPanel exists (though it should be created in click handler)
+            if (!videoPanel) videoPanel = new VideoPanelSystem();
+            
+            window.addEventListener('resize', () => {
+                if (camera) {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                }
+                if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+            
+            document.getElementById('exit-ar').addEventListener('click', () => { if (xrSession) xrSession.end(); });
+        }
+
+        function cleanupWebXR() {
+            if (renderer?.domElement?.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+            if (xrSession) xrSession.end();
+            
+            controllers = [];
+            renderer = scene = camera = xrSession = null;
+            tweenManager.clear();
+            
+            document.querySelectorAll('video').forEach(video => {
+                video.pause();
+                video.volume = 0;
+            });
+        }
+
+        function startARSession() {
+            if (!navigator.xr) {
+                updateStatus('WebXR not supported in this browser.');
+                return;
+            }
+            
+            sessionStartTime = Date.now();
+            
+            const clapSound = document.getElementById('clap-sound');
+            clapSound.load();
+            
+            navigator.xr.isSessionSupported('immersive-ar')
+                .then(supported => {
+                    if (supported) {
+                        navigator.xr.requestSession('immersive-ar', { 
+                            requiredFeatures: ['hit-test'],
+                            optionalFeatures: ['hand-tracking'],
+                        })
+                        .then(onSessionStarted)
+                        .catch(err => updateStatus('Failed to start AR: ' + err.message));
+                    } else {
+                        updateStatus('WebXR AR not supported on this device.');
+                    }
+                });
+        }
+
+        function onSessionStarted(session) {
+            xrSession = session;
+            document.body.classList.add('xr-active');
+            renderer.xr.setReferenceSpaceType('local');
+            renderer.xr.setSession(session);
+            
+            clapTransitionTriggered = false;
+            lastClapDistance = null;
+            lastClapTime = 0;
+            
+            controllers = [0, 1].map(i => {
+                const controller = renderer.xr.getController(i);
+                controller.userData.id = i;
+                controller.userData.isSelecting = false;
+                
+                const handMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.01, 8, 8),
+                    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 })
+                );
+                controller.add(handMesh);
+                
+                controller.addEventListener('selectstart', onControllerSelectStart);
+                controller.addEventListener('selectend', event => { event.target.userData.isSelecting = false; });
+                scene.add(controller);
+                return controller;
+            });
+            
+            videoPanel.init(scene, camera);
+            
+            renderer.setAnimationLoop(render);
+            session.addEventListener('end', onSessionEnd);
+            
+            updateStatus('Ready. Pinch to browse, Clap to enter.');
+        }
+        
+        function onSessionEnd() {
+            document.body.classList.remove('xr-active');
+            document.getElementById('status').style.display = 'none';
+            controllers = [];
+            renderer.setAnimationLoop(null);
+            xrSession = null;
+            
+            clapTransitionTriggered = false;
+            tweenManager.clear();
+            
+            while(scene.children.length > 0) { 
+                const object = scene.children[0];
+                if (object.geometry) object.geometry.dispose();
+                if (object.material) {
+                    if (Array.isArray(object.material)) {
+                        object.material.forEach(m => m.dispose());
+                    } else {
+                        object.material.dispose();
+                    }
+                }
+                scene.remove(object); 
+            }
+            
+            document.querySelectorAll('video').forEach(video => {
+                video.pause();
+                video.volume = 0;
+            });
+            
+            if (currentVideoForRedirect) {
+                setTimeout(() => window.location.href = currentVideoForRedirect, 200);
+            }
+        }
+        
+        function onControllerSelectStart(event) {
+            const controller = event.target;
+            controller.userData.isSelecting = true;
+            
+            if (videoPanel) videoPanel.notifyInteraction();
+
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+            
+            const interactiveObjects = videoPanel.getInteractiveObjects();
+            const intersects = raycaster.intersectObjects(interactiveObjects, true);
+            
+            if (intersects.length > 0) {
+                let current = intersects[0].object;
+                while (current) {
+                    if (current.userData?.onClick) {
+                        current.userData.onClick();
+                        break;
+                    }
+                    current = current.parent;
+                }
+            }
+        }
+        
+        function render(timestamp, frame) {
+            tweenManager.update(timestamp);
+            if (videoPanel) videoPanel.update(camera, timestamp);
+            
+            if (!clapTransitionTriggered && controllers.length === 2) {
+                const c1 = controllers[0];
+                const c2 = controllers[1];
+
+                if (c1.visible && c2.visible) {
+                    const pos1 = new THREE.Vector3().setFromMatrixPosition(c1.matrixWorld);
+                    const pos2 = new THREE.Vector3().setFromMatrixPosition(c2.matrixWorld);
+                    
+                    const distance = pos1.distanceTo(pos2);
+                    const now = timestamp;
+                    
+                    if (lastClapDistance !== null && lastClapTime > 0) {
+                        const dt = (now - lastClapTime) / 1000;
+                        
+                        if (dt > 0) {
+                            const velocity = (distance - lastClapDistance) / dt;
+                            
+                            if (distance > 0.005 && distance < 0.12 && velocity < -0.5) {
+                                triggerClap();
+                            }
+                        }
+                    }
+                    
+                    lastClapDistance = distance;
+                    lastClapTime = now;
+                } else {
+                    lastClapDistance = null;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        function triggerClap() {
+            clapTransitionTriggered = true;
+            updateStatus("Clap detected! Launching experience...");
+            
+            if (videoPanel) currentVideoForRedirect = videoPanel.getCurrentVideoLink();
+            
+            const clapSound = document.getElementById('clap-sound');
+            clapSound.volume = 0.7;
+            clapSound.play().catch(err => console.error("Error playing clap sound:", err));
+            
+            videoPanel.playClapExitAnimation(() => {
+                if (xrSession) setTimeout(() => xrSession.end(), 100);
+            });
+        }
+
+        function updateStatus(message) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.style.display = 'block';
+            
+            if (!message.includes('error') && !message.includes('not supported')) {
+                setTimeout(() => statusElement.style.display = 'none', 3000);
+            }
+        }
+        
+        class VideoPanelSystem {
+            constructor() {
+                this.panel = null;
+                this.currentIndex = 0;
+                this.isActive = false;
+                this.panelGroup = null;
+                this.videoMaterials = {};
+                this.particles = null;
+                this.logoMesh = null; // New logo reference
+                this.currentAudio = null;
+                this.shuffledIndices = [];
+                this.usedIndices = new Set();
+                this.isLoading = false;
+                this.lastInteractionTime = Date.now();
+                this.sessionStartTime = Date.now();
+                this.firstVideoChanged = false; // Track if user has navigated
+                this.instructionText = null;
+                this.instructionVisible = false;
+                this.currentMessage = ""; // Track current text content
+                this.wallMaterial = null;
+                
+                // Ambilight System Properties
+                this.analysisCanvas = document.createElement('canvas');
+                this.analysisCanvas.width = 32;
+                this.analysisCanvas.height = 32;
+                this.analysisCtx = this.analysisCanvas.getContext('2d', { willReadFrequently: true });
+                this.sharedColor = new THREE.Color(0xffffff);
+                this.targetColor = new THREE.Color(0xffffff);
+                this.frameCounter = 0;
+
+                // Audio Reactive System
+                this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                this.analyser = this.audioCtx.createAnalyser();
+                this.analyser.fftSize = 64; // Low res for performance
+                this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+                this.analyser.connect(this.audioCtx.destination);
+                
+                this.videoLinks = [];
+            }
+
+            resumeAudioContext() {
+                if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+            }
+
+            async init(scene, camera) {
+                this.scene = scene;
+                this.camera = camera;
+                this.sessionStartTime = Date.now();
+                
+                try {
+                    const response = await fetch('data.json');
+                    this.videoLinks = await response.json();
+                    this.generateRandomSequence();
+                    this.loadAssets();
+                    
+                    this.panelGroup = new THREE.Group();
+                    this.panelGroup.position.set(0, 0, -0.6);
+                    this.panelGroup.scale.set(0.5, 0.5, 0.5);
+                    this.scene.add(this.panelGroup);
+                    
+                    this.createPanel();
+                    this.createInstructionText();
+                    
+                    const particles = this.createParticleEffect();
+                    this.panel.add(particles);
+                    
+                    this.lastInteractionTime = Date.now();
+                    
+                    setTimeout(() => this.startSequence(), 500);
+
+                } catch (err) {
+                    console.error("Failed to load data.json:", err);
+                    updateStatus("Error loading experience data.");
+                }
+            }
+
+            notifyInteraction() {
+                this.lastInteractionTime = Date.now();
+                // If we interact, we want to reset instructions potentially or hide them
+                if (this.instructionVisible) {
+                    this.hideInstruction();
+                }
+                this.resumeAudioContext();
+            }
+            
+            generateRandomSequence() {
+                const count = this.videoLinks.length || 22;
+                this.shuffledIndices = Array.from({length: count}, (_, i) => i + 1);
+                for (let i = this.shuffledIndices.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [this.shuffledIndices[i], this.shuffledIndices[j]] = [this.shuffledIndices[j], this.shuffledIndices[i]];
+                }
+                this.usedIndices.clear();
+                this.currentIndex = 0;
+            }
+            
+            getCurrentVideoIndex() {
+                if (this.currentIndex >= this.shuffledIndices.length) {
+                    this.generateRandomSequence();
+                }
+                return this.shuffledIndices[this.currentIndex];
+            }
+            
+            getCurrentVideoLink() {
+                const currentVideoIndex = this.getCurrentVideoIndex();
+                const filenameToFind = `video${currentVideoIndex}.mp4`;
+                const videoData = this.videoLinks.find(item => item.filename === filenameToFind);
+                return videoData ? videoData.link : null;
+            }
+            
+            loadAssets() {
+                const count = this.videoLinks.length || 22;
+                for (let i = 1; i <= count; i++) {
+                    this.videoMaterials[i] = {
+                        video: null,
+                        texture: null,
+                        material: null,
+                        loaded: false,
+                        sourceNode: null // Store audio source node
+                    };
+                }
+            }
+            
+            loadVideoOnDemand(index) {
+                if (this.videoMaterials[index].loaded || this.isLoading) return Promise.resolve();
+                
+                this.isLoading = true;
+                
+                return new Promise((resolve) => {
+                    const video = document.createElement('video');
+                    video.loop = true;
+                    video.playsInline = true;
+                    video.crossOrigin = "anonymous";
+                    video.src = `video${index}.mp4`;
+                    video.style.cssText = 'display:block;width:1px;height:1px;position:absolute;opacity:0.01';
+                    
+                    document.getElementById('webxr-container').appendChild(video);
+                    
+                    const texture = new THREE.VideoTexture(video);
+                    texture.minFilter = THREE.LinearFilter;
+                    texture.magFilter = THREE.LinearFilter;
+                    
+                    // Hook up audio if not already connected (one time per element)
+                    try {
+                        const source = this.audioCtx.createMediaElementSource(video);
+                        source.connect(this.analyser);
+                        this.videoMaterials[index].sourceNode = source;
+                    } catch (e) {
+                        console.warn("Audio source creation skipped or failed", e);
+                    }
+
+                    this.videoMaterials[index] = {
+                        video: video,
+                        texture: texture,
+                        material: new THREE.MeshBasicMaterial({
+                            map: texture,
+                            transparent: true,
+                            side: THREE.DoubleSide
+                        }),
+                        loaded: true,
+                        sourceNode: this.videoMaterials[index].sourceNode
+                    };
+                    
+                    video.addEventListener('canplaythrough', () => {
+                        this.isLoading = false;
+                        resolve();
+                    }, { once: true });
+                    
+                    video.addEventListener('error', () => {
+                        this.isLoading = false;
+                        resolve();
+                    }, { once: true });
+                    
+                    video.load();
+                });
+            }
+            
+            preloadNextVideos(currentIndex, count = 3) {
+                for (let i = 1; i <= count; i++) {
+                    const nextIndex = (currentIndex + i) % this.shuffledIndices.length;
+                    const videoIndex = this.shuffledIndices[nextIndex];
+                    if (!this.videoMaterials[videoIndex].loaded) {
+                        setTimeout(() => this.loadVideoOnDemand(videoIndex), i * 1000);
+                    }
+                }
+            }
+
+            createInstructionText() {
+                // Initial empty mesh, will be drawn by redrawInstructionText
+                const geometry = new THREE.PlaneGeometry(0.8, 0.1);
+                const material = new THREE.MeshBasicMaterial({ 
+                    map: null, 
+                    transparent: true, 
+                    opacity: 0,
+                    side: THREE.DoubleSide
+                });
+                
+                this.instructionText = new THREE.Mesh(geometry, material);
+                // FIX: Raised text position slightly higher (was -0.4)
+                this.instructionText.position.set(0, -0.25, 0.05);
+                this.panelGroup.add(this.instructionText);
+            }
+
+            redrawInstructionText(textString) {
+                if (!this.instructionText) return;
+                
+                this.currentMessage = textString;
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 128;
+                const ctx = canvas.getContext('2d');
+                
+                ctx.fillStyle = 'rgba(0,0,0,0)';
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.font = '300 36px "Helvetica Neue", Arial, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 2;
+                ctx.shadowOffsetY = 2;
+                
+                ctx.fillText(textString, canvas.width / 2, canvas.height / 2);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                // Dispose old texture if exists
+                if (this.instructionText.material.map) this.instructionText.material.map.dispose();
+                
+                this.instructionText.material.map = texture;
+                this.instructionText.material.needsUpdate = true;
+            }
+
+            showInstruction() {
+                if (this.instructionVisible || !this.instructionText) return;
+                this.instructionVisible = true;
+                tweenManager.add(new Tween(this.instructionText.material, 'opacity', 0, 1, 1000, Tween.easeInOutSine));
+            }
+
+            hideInstruction() {
+                if (!this.instructionVisible || !this.instructionText) return;
+                this.instructionVisible = false;
+                tweenManager.add(new Tween(this.instructionText.material, 'opacity', 1, 0, 500, Tween.easeInOutSine));
+            }
+            
+            createParticleEffect() {
+                // Increased particle count for better volume
+                const particleCount = 400; 
+                const particleGeometry = new THREE.BufferGeometry();
+                const particlePositions = new Float32Array(particleCount * 3);
+                const particleOrigins = new Float32Array(particleCount * 3); // Store origin for drift calc
+                const particleSizes = new Float32Array(particleCount);
+                const particlePhases = new Float32Array(particleCount); 
+                
+                const panelWidth = 0.7;
+                const panelHeight = 0.5;
+                const halfW = panelWidth / 2;
+                const halfH = panelHeight / 2;
+
+                for (let i = 0; i < particleCount; i++) {
+                    let x, y, z;
+                    
+                    // Distribute around the edges more organically
+                    const side = Math.floor(Math.random() * 4);
+                    const spread = 0.15; // Spread width
+                    
+                    if (side === 0) { // Top
+                        x = (Math.random() - 0.5) * panelWidth;
+                        y = halfH + (Math.random() * spread);
+                    } else if (side === 1) { // Bottom
+                        x = (Math.random() - 0.5) * panelWidth;
+                        y = -halfH - (Math.random() * spread);
+                    } else if (side === 2) { // Left
+                        x = -halfW - (Math.random() * spread);
+                        y = (Math.random() - 0.5) * panelHeight;
+                    } else { // Right
+                        x = halfW + (Math.random() * spread);
+                        y = (Math.random() - 0.5) * panelHeight;
+                    }
+
+                    // Depth layering for 3D effect
+                    z = -0.05 - Math.random() * 0.3;
+
+                    particlePositions[i * 3] = x;
+                    particlePositions[i * 3 + 1] = y;
+                    particlePositions[i * 3 + 2] = z;
+                    
+                    particleOrigins[i * 3] = x;
+                    particleOrigins[i * 3 + 1] = y;
+                    particleOrigins[i * 3 + 2] = z;
+                    
+                    particleSizes[i] = (0.005 + Math.random() * 0.02);
+                    particlePhases[i] = Math.random() * Math.PI * 2;
+                }
+                
+                particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+                particleGeometry.setAttribute('originalPosition', new THREE.BufferAttribute(particleOrigins, 3));
+                particleGeometry.setAttribute('size', new THREE.BufferAttribute(particleSizes, 1));
+                particleGeometry.setAttribute('phase', new THREE.BufferAttribute(particlePhases, 1));
+                
+                const particleMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        time: { value: 0 },
+                        color: { value: this.sharedColor },
+                        audioLevel: { value: 0.0 }
+                    },
+                    vertexShader: `
+                        attribute vec3 originalPosition;
+                        attribute float size;
+                        attribute float phase;
+                        uniform float time;
+                        uniform float audioLevel;
+                        varying float vAlpha;
+                        
+                        // Simple pseudo-randomness
+                        float rand(vec2 co){
+                            return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+                        }
+
+                        void main() {
+                            vec3 pos = originalPosition;
+                            
+                            // AAA Movement: Flow Field Simulation
+                            // Instead of simple sine waves, we mix frequencies to create "turbulence"
+                            float slowTime = time * 0.2;
+                            float flowX = sin(pos.y * 5.0 + slowTime + phase) * cos(pos.z * 3.0 + slowTime);
+                            float flowY = cos(pos.x * 5.0 + slowTime + phase) * sin(pos.z * 3.0 + slowTime);
+                            float flowZ = sin(pos.x * 3.0 + slowTime) * cos(pos.y * 3.0 + slowTime);
+                            
+                            // Audio Energy affects the magnitude of the flow (turbulence)
+                            float energy = 0.02 + (audioLevel * 0.08); 
+                            
+                            pos.x += flowX * energy;
+                            pos.y += flowY * energy;
+                            pos.z += flowZ * energy;
+                            
+                            // Subtle "Beat" expansion
+                            vec3 centerDir = normalize(pos);
+                            pos += centerDir * audioLevel * 0.05;
+                            
+                            // Distance Fade Logic
+                            float dist = length(pos.xy);
+                            float edgeFade = smoothstep(0.5, 0.2, dist);
+                            
+                            // Audio Pulse Alpha
+                            float pulse = 0.3 + 0.7 * audioLevel;
+                            vAlpha = (0.3 + 0.7 * sin(time + phase)) * edgeFade * pulse;
+                            
+                            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                            
+                            // Size attenuation
+                            gl_PointSize = size * (1.0 + audioLevel) * (400.0 / -mvPosition.z);
+                            gl_Position = projectionMatrix * mvPosition;
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 color;
+                        varying float vAlpha;
+                        
+                        void main() {
+                            // Soft particle circle
+                            vec2 xy = gl_PointCoord.xy - 0.5;
+                            float r = length(xy);
+                            float alpha = smoothstep(0.5, 0.0, r);
+                            
+                            if (alpha < 0.01) discard;
+                            
+                            // Center is white/hot, edges take the ambilight color
+                            vec3 finalColor = mix(color, vec3(1.0), alpha * 0.5);
+                            
+                            gl_FragColor = vec4(finalColor, alpha * vAlpha);
+                        }
+                    `,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                });
+                
+                this.particles = new THREE.Points(particleGeometry, particleMaterial);
+                return this.particles;
+            }
+            
+            createPanel() {
+                const panel = new THREE.Group();
+                const panelWidth = 0.7;
+                const panelHeight = 0.5;
+                const bevelDepth = 0.2; 
+                
+                const glowMesh = this.createGlowEffect(panelWidth, panelHeight);
+                glowMesh.position.z = 0; 
+                panel.add(glowMesh);
+
+                this.createDepthFrame(panel, panelWidth, panelHeight, bevelDepth);
+                
+                // --- Logo Creation ---
+                const logoTexture = new THREE.TextureLoader().load('icon2.png');
+                const logoMaterial = new THREE.MeshBasicMaterial({ 
+                    map: logoTexture, 
+                    transparent: true,
+                    opacity: 0 
+                });
+                const logoGeo = new THREE.PlaneGeometry(0.12, 0.12);
+                this.logoMesh = new THREE.Mesh(logoGeo, logoMaterial);
+                this.logoMesh.position.set(0, panelHeight / 2 + 0.15, -0.1); 
+                panel.add(this.logoMesh);
+                // ---------------------
+
+                const videoGeometry = new THREE.PlaneGeometry(panelWidth, panelHeight);
+                
+                // AAA Video Shader:
+                // 1. High-quality SDF for perfectly smooth corners
+                // 2. Specular edge highlight (glass bevel effect)
+                // 3. Fresnel reflection
+                const videoMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        videoTexture: { value: null },
+                        cornerRadius: { value: 0.08 }, 
+                        dimensions: { value: new THREE.Vector2(panelWidth, panelHeight) },
+                        glowColor: { value: this.sharedColor }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        varying vec3 vViewPosition;
+                        varying vec3 vNormal;
+                        void main() {
+                            vUv = uv;
+                            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                            vViewPosition = -mvPosition.xyz; 
+                            vNormal = normalize(normalMatrix * normal);
+                            gl_Position = projectionMatrix * mvPosition;
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform sampler2D videoTexture;
+                        uniform float cornerRadius;
+                        uniform vec2 dimensions;
+                        uniform vec3 glowColor;
+                        varying vec2 vUv;
+                        varying vec3 vViewPosition;
+                        varying vec3 vNormal;
+                        
+                        // Improved SDF function
+                        float roundedBoxSDF(vec2 p, vec2 b, float r) {
+                            vec2 q = abs(p) - b + r;
+                            return min(max(q.x,q.y),0.0) + length(max(q,0.0)) - r;
+                        }
+                        
+                        void main() {
+                            // UV to centered coordinates
+                            vec2 coords = (vUv - 0.5) * dimensions;
+                            vec2 halfDim = dimensions * 0.5;
+                            
+                            // Calculate Distance Field
+                            float d = roundedBoxSDF(coords, halfDim, cornerRadius);
+                            
+                            // 1. High Quality Anti-aliased Edge
+                            // fwidth gives us the derivative of the pixel, allowing perfect 1-pixel AA
+                            float edgeSoftness = fwidth(d); 
+                            float alpha = 1.0 - smoothstep(-edgeSoftness, edgeSoftness, d);
+                            
+                            if (alpha < 0.01) discard;
+                            
+                            // 2. Video Content
+                            vec4 videoColor = texture2D(videoTexture, vUv);
+                            
+                            // 3. "Glass Bezel" / Rim Light Effect
+                            // We create a thin line just inside the SDF edge
+                            float border = 1.0 - smoothstep(0.0, 0.003, abs(d + 0.003));
+                            vec3 borderColor = mix(vec3(1.0), glowColor, 0.5);
+                            
+                            // 4. Premium Reflection (Fresnel)
+                            vec3 viewDir = normalize(vViewPosition);
+                            float fresnel = pow(1.0 - dot(viewDir, vNormal), 3.0);
+                            
+                            // Pseudo-environment reflection (top-down light)
+                            vec3 ref = reflect(-viewDir, vNormal);
+                            float reflection = smoothstep(-0.2, 0.3, ref.y) * 0.15;
+                            
+                            // Compose Final Color
+                            vec3 finalColor = videoColor.rgb;
+                            
+                            // Add reflection to video
+                            finalColor += vec3(0.9, 0.95, 1.0) * reflection;
+                            
+                            // Add rim light/border
+                            finalColor += borderColor * border * 0.8;
+                            
+                            // Slight vignette
+                            float vignette = 1.0 - dot(vUv - 0.5, vUv - 0.5) * 0.5;
+                            finalColor *= vignette;
+                            
+                            gl_FragColor = vec4(finalColor, alpha);
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide
+                });
+                
+                this.videoPlane = new THREE.Mesh(videoGeometry, videoMaterial);
+                this.videoPlane.position.z = -bevelDepth; 
+                
+                this.videoPlane.userData.onClick = () => {
+                    this.notifyInteraction();
+                    this.showNextVideo();
+                };
+                
+                panel.add(this.videoPlane);
+                
+                this.panelGroup.add(panel);
+                this.panel = panel;
+                this.panel.visible = false;
+            }
+
+            createDepthFrame(parentGroup, width, height, depth) {
+                this.wallMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        color: { value: this.sharedColor } 
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 color;
+                        varying vec2 vUv;
+                        
+                        void main() {
+                            float edgeFade = smoothstep(0.15, 0.3, vUv.x) * (1.0 - smoothstep(0.7, 0.85, vUv.x));
+                            float depthFade = 1.0 - vUv.y; 
+                            float alpha = 0.3 * edgeFade; 
+                            
+                            gl_FragColor = vec4(color, alpha);
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                const topGeo = new THREE.PlaneGeometry(width, depth);
+                const topMesh = new THREE.Mesh(topGeo, this.wallMaterial);
+                topMesh.position.set(0, height/2, -depth/2);
+                topMesh.rotation.x = Math.PI / 2;
+                parentGroup.add(topMesh);
+
+                const bottomMesh = new THREE.Mesh(topGeo, this.wallMaterial);
+                bottomMesh.position.set(0, -height/2, -depth/2);
+                bottomMesh.rotation.x = Math.PI / 2;
+                parentGroup.add(bottomMesh);
+
+                const sideGeo = new THREE.PlaneGeometry(height, depth);
+                const leftMesh = new THREE.Mesh(sideGeo, this.wallMaterial);
+                leftMesh.position.set(-width/2, 0, -depth/2);
+                leftMesh.rotation.x = Math.PI / 2; 
+                leftMesh.rotation.y = Math.PI / 2;
+                parentGroup.add(leftMesh);
+
+                const rightMesh = new THREE.Mesh(sideGeo, this.wallMaterial);
+                rightMesh.position.set(width/2, 0, -depth/2);
+                rightMesh.rotation.x = Math.PI / 2;
+                rightMesh.rotation.y = Math.PI / 2;
+                parentGroup.add(rightMesh);
+            }
+            
+            createGlowEffect(width, height) {
+                const meshScale = 1.2; 
+                const visualScale = 1.02; 
+                
+                const glowGeometry = new THREE.PlaneGeometry(width * meshScale, height * meshScale);
+                
+                const glowMaterial = new THREE.ShaderMaterial({
+                    uniforms: {
+                        glowColor: { value: this.sharedColor }, 
+                        glowIntensity: { value: 0.4 },
+                        cornerRadius: { value: 0.1 }, 
+                        meshSize: { value: new THREE.Vector2(width * meshScale, height * meshScale) },
+                        boxSize: { value: new THREE.Vector2(width * visualScale, height * visualScale) },
+                        time: { value: 0 }
+                    },
+                    vertexShader: `
+                        varying vec2 vUv;
+                        void main() {
+                            vUv = uv;
+                            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                        }
+                    `,
+                    fragmentShader: `
+                        uniform vec3 glowColor;
+                        uniform float glowIntensity;
+                        uniform float cornerRadius;
+                        uniform vec2 meshSize;
+                        uniform vec2 boxSize;
+                        uniform float time;
+                        varying vec2 vUv;
+                        
+                        float roundedRectangle(vec2 position, vec2 dimensions, float radius) {
+                            vec2 q = abs(position) - dimensions + vec2(radius);
+                            return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - radius;
+                        }
+                        
+                        void main() {
+                            vec2 position = (vUv - 0.5) * meshSize;
+                            float distToEdge = roundedRectangle(position, boxSize * 0.5, cornerRadius);
+                            
+                            float glow = 1.0 - smoothstep(-0.01, 0.08, distToEdge);
+                            float outerGlow = 1.0 - smoothstep(-0.05, 0.05, distToEdge);
+                            
+                            float pulse = 1.0 + 0.1 * sin(time * 2.0);
+                            glow = max(glow, outerGlow * 0.5) * pulse;
+                            
+                            gl_FragColor = vec4(glowColor, glow * glowIntensity);
+                        }
+                    `,
+                    transparent: true,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                return new THREE.Mesh(glowGeometry, glowMaterial);
+            }
+            
+            startSequence() {
+                this.isActive = true;
+                this.currentIndex = 0;
+                this.panel.visible = true;
+                this.lastInteractionTime = Date.now();
+                this.sessionStartTime = Date.now(); // Reset session time on start
+                
+                this.animateEntrance();
+                this.showCurrentVideo();
+            }
+            
+            animateEntrance() {
+                this.panelGroup.scale.set(0.6, 0.6, 0.6);
+                this.panelGroup.position.set(0, 0, -0.8); 
+                
+                // Animate logo entrance
+                if (this.logoMesh) {
+                    this.logoMesh.material.opacity = 0;
+                    tweenManager.add(new Tween(this.logoMesh.material, 'opacity', 0, 1.0, 800, Tween.easeOutCubic));
+                }
+
+                this.panel.traverse(obj => {
+                    if (obj.material && obj.material.opacity !== undefined && obj !== this.logoMesh) {
+                        obj.material.opacity = 0;
+                    } else if (obj.material && obj.material.uniforms && obj.material.uniforms.glowIntensity) {
+                        obj.material.uniforms.glowIntensity.value = 0;
+                    }
+                });
+                
+                tweenManager.add(new Tween(this.panelGroup.scale, 'x', 0.6, 1.0, 600, Tween.easeOutCubic));
+                tweenManager.add(new Tween(this.panelGroup.scale, 'y', 0.6, 1.0, 600, Tween.easeOutCubic));
+                tweenManager.add(new Tween(this.panelGroup.position, 'z', -0.8, -0.6, 700, Tween.easeOutCubic));
+                
+                this.panel.traverse(obj => {
+                    if (obj.material && obj !== this.logoMesh) {
+                        if (obj.material.opacity !== undefined) {
+                            tweenManager.add(new Tween(obj.material, 'opacity', 0, 1.0, 800, Tween.easeOutCubic));
+                        } else if (obj.material.uniforms && obj.material.uniforms.glowIntensity) {
+                            tweenManager.add(new Tween(
+                                obj.material.uniforms.glowIntensity, 
+                                'value', 
+                                0, 
+                                0.45, 
+                                1000, 
+                                Tween.easeOutCubic
+                            ));
+                        }
+                    }
+                });
+            }
+            
+            playClapExitAnimation(onComplete) {
+                if (this.currentAudio) this.fadeAudio(this.currentAudio, this.currentAudio.volume, 0, 200);
+                
+                const cameraPos = new THREE.Vector3();
+                this.camera.getWorldPosition(cameraPos);
+                
+                const startScale = this.panelGroup.scale.x;
+                const startZ = this.panelGroup.position.z;
+                
+                tweenManager.add(new Tween(this.panelGroup.scale, ['x'], startScale, startScale * 0.9, 200, Tween.easeInOutSine));
+                tweenManager.add(new Tween(this.panelGroup.scale, ['y'], startScale, startScale * 0.9, 200, Tween.easeInOutSine));
+                tweenManager.add(new Tween(this.panelGroup.position, ['z'], startZ, startZ - 0.1, 200, Tween.easeInOutSine, () => {
+                    
+                    tweenManager.add(new Tween(this.panelGroup.scale, ['x'], startScale * 0.9, startScale * 8.0, 500, Tween.easeInExpo));
+                    tweenManager.add(new Tween(this.panelGroup.scale, ['y'], startScale * 0.9, startScale * 8.0, 500, Tween.easeInExpo));
+                    
+                    tweenManager.add(new Tween(this.panelGroup.position, ['x'], this.panelGroup.position.x, cameraPos.x, 500, Tween.easeInExpo));
+                    tweenManager.add(new Tween(this.panelGroup.position, ['y'], this.panelGroup.position.y, cameraPos.y, 500, Tween.easeInExpo));
+                    tweenManager.add(new Tween(this.panelGroup.position, ['z'], this.panelGroup.position.z, cameraPos.z + 0.1, 500, Tween.easeInExpo, onComplete));
+                    
+                    this.panel.traverse(obj => {
+                        if (obj.material && obj.material.uniforms && obj.material.uniforms.glowIntensity) {
+                            tweenManager.add(new Tween(
+                                obj.material.uniforms.glowIntensity,
+                                'value',
+                                obj.material.uniforms.glowIntensity.value,
+                                2.0,
+                                500,
+                                Tween.easeInExpo
+                            ));
+                        }
+                    });
+                }));
+            }
+            
+            fadeAudio(video, fromVolume, toVolume, duration) {
+                const startTime = Date.now();
+                const fadeInterval = setInterval(() => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    video.volume = fromVolume + (toVolume - fromVolume) * progress;
+                    if (progress >= 1) {
+                        clearInterval(fadeInterval);
+                        video.volume = toVolume;
+                    }
+                }, 16);
+                return fadeInterval;
+            }
+            
+            animateExit(onComplete) {
+                if (this.currentAudio) this.fadeAudio(this.currentAudio, this.currentAudio.volume, 0, 400);
+                
+                tweenManager.add(new Tween(this.panelGroup.scale, 'x', this.panelGroup.scale.x, 0.6, 400, Tween.easeOutCubic));
+                tweenManager.add(new Tween(this.panelGroup.scale, 'y', this.panelGroup.scale.y, 0.6, 400, Tween.easeOutCubic));
+                tweenManager.add(new Tween(this.panelGroup.position, 'z', this.panelGroup.position.z, -0.9, 500, Tween.easeOutCubic, onComplete));
+                
+                // Fade out logo
+                if (this.logoMesh) {
+                    tweenManager.add(new Tween(this.logoMesh.material, 'opacity', this.logoMesh.material.opacity, 0, 300, Tween.easeOutCubic));
+                }
+
+                this.panel.traverse(obj => {
+                    if (obj.material && obj !== this.logoMesh) {
+                        if (obj.material.opacity !== undefined) {
+                            tweenManager.add(new Tween(obj.material, 'opacity', obj.material.opacity, 0, 300, Tween.easeOutCubic));
+                        } else if (obj.material.uniforms && obj.material.uniforms.glowIntensity) {
+                            tweenManager.add(new Tween(
+                                obj.material.uniforms.glowIntensity, 
+                                'value', 
+                                obj.material.uniforms.glowIntensity.value, 
+                                0, 
+                                300, 
+                                Tween.easeOutCubic
+                            ));
+                        }
+                    }
+                });
+            }
+            
+            async showCurrentVideo() {
+                const videoIndex = this.getCurrentVideoIndex();
+                this.usedIndices.add(videoIndex);
+                
+                await this.loadVideoOnDemand(videoIndex);
+                
+                if (this.videoMaterials[videoIndex] && this.videoMaterials[videoIndex].texture) {
+                    if (this.videoPlane && this.videoPlane.material.uniforms) {
+                        this.videoPlane.material.uniforms.videoTexture.value = this.videoMaterials[videoIndex].texture;
+                    }
+                    
+                    Object.entries(this.videoMaterials).forEach(([index, material]) => {
+                        if (parseInt(index) !== videoIndex && material.video) {
+                            material.video.pause();
+                            material.video.volume = 0;
+                        }
+                    });
+                    
+                    const video = this.videoMaterials[videoIndex].video;
+                    if (video) {
+                        video.volume = 0;
+                        this.currentAudio = video;
+                        this.currentVideoElement = video; 
+                        
+                        video.play().then(() => {
+                            this.fadeAudio(video, 0, 0.8, 500);
+                        }).catch(err => {
+                            console.error("Error playing video:", err);
+                            updateStatus("Tap again to enable audio");
+                        });
+                    }
+                    
+                    this.preloadNextVideos(this.currentIndex);
+                }
+            }
+            
+            showNextVideo() {
+                // FIX: Flag that user has successfully navigated at least once
+                this.firstVideoChanged = true;
+                
+                this.animateExit(() => {
+                    this.currentIndex++;
+                    this.showCurrentVideo();
+                    this.animateEntrance();
+                });
+            }
+            
+            update(camera, timestamp) {
+                if (!this.isActive || !this.panelGroup || !camera) return;
+                
+                const cameraDirection = new THREE.Vector3(0, 0, -1);
+                cameraDirection.applyQuaternion(camera.quaternion);
+                cameraDirection.multiplyScalar(0.8);
+                
+                const targetPosition = new THREE.Vector3().copy(camera.position).add(cameraDirection);
+                
+                this.panelGroup.position.lerp(targetPosition, 0.05);
+                this.panelGroup.lookAt(camera.position);
+                
+                const videoIndex = this.getCurrentVideoIndex();
+                if (this.videoMaterials[videoIndex] && this.videoMaterials[videoIndex].texture) {
+                    this.videoMaterials[videoIndex].texture.needsUpdate = true;
+                }
+
+                // Audio Analysis
+                if (this.analyser && this.particles && this.particles.material.uniforms) {
+                    this.analyser.getByteFrequencyData(this.dataArray);
+                    // Calculate average volume
+                    let sum = 0;
+                    // We only check the lower frequencies for the "beat"
+                    const lowEnd = Math.floor(this.dataArray.length / 2);
+                    for(let i = 0; i < lowEnd; i++) {
+                        sum += this.dataArray[i];
+                    }
+                    const avg = sum / lowEnd;
+                    const normalized = avg / 255;
+                    
+                    // Smoothly update audio level uniform
+                    const currentLevel = this.particles.material.uniforms.audioLevel.value;
+                    this.particles.material.uniforms.audioLevel.value += (normalized - currentLevel) * 0.1;
+                }
+                
+                // Ambilight Analysis Logic
+                this.frameCounter++;
+                if (this.frameCounter % 10 === 0 && this.currentVideoElement && this.currentVideoElement.readyState === 4) {
+                    try {
+                        this.analysisCtx.drawImage(this.currentVideoElement, 0, 0, 32, 32);
+                        const frameData = this.analysisCtx.getImageData(0, 0, 32, 32).data;
+                        let r = 0, g = 0, b = 0;
+                        const pixelCount = frameData.length / 4;
+                        
+                        for (let i = 0; i < frameData.length; i += 4) {
+                            r += frameData[i];
+                            g += frameData[i+1];
+                            b += frameData[i+2];
+                        }
+                        
+                        r = Math.floor(r / pixelCount) / 255;
+                        g = Math.floor(g / pixelCount) / 255;
+                        b = Math.floor(b / pixelCount) / 255;
+                        
+                        // Boost saturation 
+                        const max = Math.max(r, g, b);
+                        const min = Math.min(r, g, b);
+                        if (max > min) {
+                            r = (r - min) / (max - min) * 0.6 + r * 0.4;
+                            g = (g - min) / (max - min) * 0.6 + g * 0.4;
+                            b = (b - min) / (max - min) * 0.6 + b * 0.4;
+                        }
+                        
+                        this.targetColor.setRGB(r, g, b);
+                    } catch (e) {
+                         // CORS/Security
+                    }
+                }
+                
+                // Smoother transition
+                this.sharedColor.lerp(this.targetColor, 0.03);
+
+                if (this.particles && this.particles.material.uniforms) {
+                    this.particles.material.uniforms.time.value = timestamp * 0.001;
+                }
+
+                this.panel.traverse(obj => {
+                    if (obj.material && obj.material.uniforms && obj.material.uniforms.time) {
+                        obj.material.uniforms.time.value = timestamp * 0.001;
+                    }
+                });
+
+                // FIX: Updated Instruction Logic
+                // 1. If user hasn't changed video after 20s, show specific help text
+                // 2. Otherwise fall back to standard "Clap" idle hint
+                const timeSinceStart = Date.now() - this.sessionStartTime;
+                const timeSinceInteraction = Date.now() - this.lastInteractionTime;
+                
+                let targetText = "";
+
+                if (!this.firstVideoChanged && timeSinceStart > 20000) {
+                    targetText = "Pinch or Tap for next";
+                } else if (timeSinceInteraction > 10000) {
+                    targetText = "Clap your controllers or hands together to start";
+                }
+
+                if (targetText !== this.currentMessage) {
+                    this.redrawInstructionText(targetText);
+                    if (targetText === "") {
+                        this.hideInstruction();
+                    } else {
+                        // If switching text while already visible, we just update map (handled in redraw)
+                        // If not visible, fade it in
+                        if (!this.instructionVisible) this.showInstruction();
+                    }
+                }
+            }
+            
+            getInteractiveObjects() {
+                return this.panel ? [this.videoPlane] : [];
+            }
+        }
+    </script>
+</body>
+</html>
