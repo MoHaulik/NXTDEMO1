@@ -1,1050 +1,1030 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>NXT/WebXR</title>
-  <link rel="icon" href="favicon1.svg" type="image/svg+xml">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#000000">
-  <style>
-    body { background-color: black; margin: 0; overflow: hidden; font-family: 'Helvetica Neue', Arial, sans-serif; }
-    .hidden { display: none; }
-    .fade-out { animation: fadeOut .5s ease-in-out forwards; }
-    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
-    .fade-in { animation: fadeIn .5s ease-in-out; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+<meta charset="utf-8">
+<title>NXT/ExpoXR</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.150.1/build/three.module.js" } }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap');
+:root{
+  --navy:#1C2951; --bg:#F7F9FC; --dim:#5A6478; --line:#E3E8F1;
+  --a1:#3E6DF3; --a2:#5AA5F7;
+  --grad:linear-gradient(95deg,var(--a1),var(--a2));
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;overflow:hidden;background:var(--bg);color:var(--navy)}
+body.xr-active{background:transparent}
 
-    /* --- Landing --- */
-    #intro-overlay { position: fixed; inset: 0; background: #000; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
-    #intro-content { position: relative; z-index: 2; text-align: center; color: white; max-width: 800px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100%; }
-    #overlay-logo { width: 50%; max-width: 220px; height: auto; margin-bottom: 20px; animation: hopIn 1s ease-out; }
-    @keyframes hopIn { 0% { transform: translateY(-50px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
-    #intro-content h1 { margin-bottom: 20px; font-size: 32px; font-weight: 300; letter-spacing: 1px; }
-    #intro-content p { font-size: 16px; line-height: 1.6; margin-bottom: 36px; font-weight: 300; color: rgba(255,255,255,.9); }
-    #intro-bottom-buttons { position: relative; display: flex; align-items: center; justify-content: center; gap: 30px; margin-top: 10px; z-index: 30; }
-    #mode-line { margin-top: 26px; font-size: 13px; letter-spacing: .8px; color: rgba(255,255,255,.45); font-weight: 300; min-height: 16px; }
+/* ---------- Landing ---------- */
+.landing{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% -10%,#FFFFFF 0%,var(--bg) 60%)}
+.floor{position:absolute;left:-25%;right:-25%;bottom:-12%;height:52%;pointer-events:none;
+  background:linear-gradient(rgba(28,41,81,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(28,41,81,.07) 1px,transparent 1px);
+  background-size:64px 64px;transform:perspective(700px) rotateX(64deg);transform-origin:50% 0;
+  -webkit-mask-image:linear-gradient(#000 10%,transparent 85%);mask-image:linear-gradient(#000 10%,transparent 85%)}
+.glow{position:absolute;left:50%;bottom:8%;width:640px;height:280px;transform:translateX(-50%);pointer-events:none;
+  background:radial-gradient(50% 60% at 50% 100%,rgba(62,109,243,.14),transparent 70%)}
+.hero{position:relative;text-align:center;max-width:640px;padding:0 28px}
+.brand{font-weight:800;font-size:clamp(2.6rem,7vw,4.6rem);letter-spacing:-.035em;line-height:1.05;color:var(--navy)}
+.brand span{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{color:var(--dim);font-size:1.08rem;line-height:1.65;max-width:460px;margin:20px auto 36px}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{font-family:'Inter',sans-serif;font-weight:600;font-size:1rem;letter-spacing:.01em;cursor:pointer;border-radius:999px;padding:17px 40px;transition:transform .25s,box-shadow .25s,border-color .25s}
+.btn.primary{border:none;color:#fff;background:var(--grad);box-shadow:0 10px 30px rgba(62,109,243,.30)}
+.btn.primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px rgba(62,109,243,.38)}
+.btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--line);box-shadow:0 4px 16px rgba(28,41,81,.06)}
+.btn.ghost:hover{transform:translateY(-2px);border-color:var(--a1)}
 
-    /* --- Tunnel --- */
-    .tunnel-wrapper { position: absolute; inset: 0; perspective: 1000px; overflow: hidden; z-index: 1; pointer-events: none; }
-    .tunnel-wrapper .square { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) translateZ(-1000px) scale(0); opacity: 0; width: 200vmax; height: 200vmax; border: 2px solid white; box-shadow: 0 60px 140px white; backface-visibility: hidden; border-radius: 15%; animation: move-animation 12s infinite linear; }
-    @keyframes move-animation {
-      0% { opacity: 1; transform: translate(-50%,-50%) translateZ(-1000px) scale(0); }
-      50% { opacity: 1; transform: translate(-50%,-50%) translateZ(0) scale(1); }
-      100% { opacity: 0; transform: translate(-50%,-50%) translateZ(1000px) scale(1.5); }
-    }
+/* Signature: a frame locked to an anchor point in space */
+.anchor-scene{position:absolute;left:50%;bottom:15%;transform:translateX(-50%);pointer-events:none;perspective:800px}
+.frame3d{width:120px;height:86px;border:2px solid rgba(62,109,243,.55);border-radius:2px;background:linear-gradient(135deg,rgba(62,109,243,.12),rgba(90,165,247,.06));backdrop-filter:blur(2px);transform:rotateX(8deg) rotateY(-16deg);animation:hover 6s ease-in-out infinite}
+.tether{width:1px;height:56px;margin:0 auto;background:linear-gradient(rgba(62,109,243,.45),transparent)}
+.anchor-dot{width:10px;height:10px;margin:-4px auto 0;border-radius:50%;background:var(--a1);box-shadow:0 0 0 0 rgba(62,109,243,.45);animation:pulse 2.4s ease-out infinite}
+@keyframes hover{0%,100%{transform:rotateX(8deg) rotateY(-16deg) translateY(0)}50%{transform:rotateX(8deg) rotateY(-16deg) translateY(-10px)}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(55,230,212,.5)}70%{box-shadow:0 0 0 18px rgba(55,230,212,0)}100%{box-shadow:0 0 0 0 rgba(55,230,212,0)}}
+@media (prefers-reduced-motion:reduce){.frame3d,.anchor-dot{animation:none}}
 
-    /* --- Buttons --- */
-    :root {
-      --glow-hue: 222deg;
-      --spring-easing: linear(0,0.002,0.01 0.9%,0.038 1.8%,0.156,0.312 5.8%,0.789 11.1%,1.015 14.2%,1.096,1.157,1.199,1.224 20.3%,1.231,1.231,1.226,1.214 24.6%,1.176 26.9%,1.057 32.6%,1.007 35.5%,0.984,0.968,0.956,0.949 42%,0.946 44.1%,0.95 46.5%,0.998 57.2%,1.007,1.011 63.3%,1.012 68.3%,0.998 84%,1);
-      --spring-duration: 1.33s;
-    }
-    @property --shimmer { syntax: "<angle>"; inherits: false; initial-value: 33deg; }
-    @keyframes shimmer { 0% { --shimmer: 0deg; } 100% { --shimmer: 360deg; } }
-    .styled-button { position: relative; padding: 12px 24px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.2); border-radius: 30px; font-size: 18px; color: white; cursor: pointer; backdrop-filter: blur(10px); transition: all var(--spring-duration) var(--spring-easing); isolation: isolate; box-shadow: 0 2px 10px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.2); transform: scale(1); }
-    .styled-button:hover:not(:active), .styled-button.active { transition-duration: calc(var(--spring-duration)*.5); transform: scale(1.1); background: rgba(255,255,255,.25); box-shadow: 0 8px 20px rgba(0,0,0,.3); }
-    .styled-button:active { transform: scale(1.05); transition-duration: calc(var(--spring-duration)*.5); }
-    .styled-button:disabled { opacity: .5; cursor: wait; }
-    .styled-button .shimmer { position: absolute; inset: -20px; border-radius: inherit; mask-image: conic-gradient(from var(--shimmer,0deg), transparent 0%, transparent 10%, black 36%, black 45%, transparent 50%, transparent 60%, black 85%, black 95%, transparent 100%); mask-size: cover; mix-blend-mode: plus-lighter; animation: shimmer 1s linear infinite both; pointer-events: none; }
-    .styled-button .shimmer::before, .styled-button .shimmer::after { transition: all .5s ease; opacity: 0; content: ""; border-radius: inherit; position: absolute; mix-blend-mode: color; inset: 20px; pointer-events: none; }
-    .styled-button .shimmer::before { box-shadow: 0 0 3px 2px hsl(var(--glow-hue) 20% 95%), 0 0 7px 4px hsl(var(--glow-hue) 20% 80%), 0 0 13px 4px hsl(var(--glow-hue) 50% 70%), 0 0 25px 5px hsl(var(--glow-hue) 100% 70%); z-index: -1; }
-    .styled-button .shimmer::after { box-shadow: inset 0 0 0 1px hsl(var(--glow-hue) 70% 95%), inset 0 0 2px 1px hsl(var(--glow-hue) 100% 80%), inset 0 0 5px 2px hsl(var(--glow-hue) 100% 70%); z-index: 2; }
-    .styled-button .text { color: white; font-weight: 500; }
+/* ---------- In-AR UI ---------- */
+.controls-panel{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:14px;background:rgba(12,16,28,.62);backdrop-filter:blur(18px);border-radius:999px;padding:13px 22px;border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 40px rgba(0,0,0,.45);z-index:1000}
+.control-btn{width:56px;height:56px;border-radius:50%;border:1px solid rgba(255,255,255,.16);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:600;transition:.25s;color:#fff;background:rgba(255,255,255,.08);font-family:'Inter',sans-serif}
+.control-btn:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.45)}
+.add-btn{background:var(--grad);color:#fff;border:none}
+.remove-btn.active{background:#E8484F;border-color:#E8484F;color:#fff}
+.save-btn{font-size:15px}
+.xr-active .landing{display:none}
+.xr-active .controls-panel{display:flex}
 
-    /* --- XR / preview chrome (visible in-headset via dom-overlay) --- */
-    #webxr-container { position: fixed; inset: 0; background: transparent; z-index: 10; display: none; }
-    #status { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: rgba(10,10,10,.85); color: white; padding: 12px 24px; border: 1px solid rgba(255,255,255,.2); border-radius: 30px; font-size: 14px; display: none; z-index: 9999; backdrop-filter: blur(10px); letter-spacing: .5px; max-width: 80vw; text-align: center; }
-    .exit-ar, #back-to-intro { position: fixed; top: 20px; background: rgba(255,255,255,.15); color: white; border: 1px solid rgba(255,255,255,.3); border-radius: 50%; width: 46px; height: 46px; display: none; align-items: center; justify-content: center; font-size: 24px; cursor: pointer; z-index: 9999; backdrop-filter: blur(5px); }
-    .exit-ar { right: 20px; } #back-to-intro { left: 20px; }
-    .xr-active .exit-ar, .xr-active #back-to-intro { display: flex; }
-    video { display: block; width: 1px; height: 1px; position: absolute; opacity: .01; pointer-events: none; }
+/* PERF: the DOM overlay is composited into every XR frame — backdrop blur
+   on Quest costs whole milliseconds and caused visible frame drops.
+   In AR we swap blur for solid glass; the 2D page keeps its blur. */
+.xr-active .controls-panel,
+.xr-active .status-message{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(12,16,28,.9)}
+.xr-active .modal{backdrop-filter:none;-webkit-backdrop-filter:none}
 
-    @media (max-width: 600px) {
-      #overlay-logo { width: 40%; max-width: 160px; }
-      #intro-content h1 { font-size: 24px; }
-      #intro-content p { font-size: 14px; }
-      .styled-button { font-size: 16px; padding: 10px 20px; }
-      #intro-bottom-buttons { flex-direction: column; gap: 15px; }
-    }
-  </style>
+.file-input{display:none}
+.status-message{position:fixed;top:28px;left:50%;transform:translateX(-50%);background:rgba(12,16,28,.85);color:#fff;padding:13px 26px;border-radius:999px;font-size:15px;font-weight:500;z-index:1001;backdrop-filter:blur(12px);display:none;max-width:82%;text-align:center;border:1px solid rgba(255,255,255,.14)}
+.status-message.locked{border-color:rgba(90,165,247,.65)}
+
+/* ---------- Live exhibit map (AR overlay) ---------- */
+.map-panel{position:fixed;top:24px;right:24px;z-index:1000;display:none;width:280px;border-radius:16px;overflow:hidden;background:radial-gradient(120% 90% at 50% -10%,#FFFFFF 0%,var(--bg) 70%);border:1px solid var(--line);box-shadow:0 12px 40px rgba(16,24,44,.35)}
+.map-head{font-size:12px;font-weight:800;letter-spacing:-.01em;color:var(--navy);padding:9px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.map-head b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+.map-head span{color:var(--dim);font-weight:500;white-space:nowrap}
+#map-canvas{display:block;width:280px;height:210px}
+.xr-active .map-panel{display:block}
+
+.modal{position:fixed;inset:0;background:rgba(16,24,44,.5);display:none;align-items:center;justify-content:center;z-index:2000;backdrop-filter:blur(6px)}
+.modal-content{background:#fff;border:1px solid var(--line);padding:36px;border-radius:18px;text-align:center;max-width:500px;margin:20px;box-shadow:0 24px 60px rgba(16,24,44,.25)}
+.modal-title{font-weight:800;font-size:1.25rem;margin-bottom:14px;color:var(--navy);letter-spacing:-.01em}
+.modal-text{font-size:1rem;margin-bottom:26px;color:var(--dim);line-height:1.6}
+.modal-buttons{display:flex;gap:14px;justify-content:center}
+.modal-btn{padding:13px 26px;border-radius:999px;font-size:.95rem;font-weight:600;cursor:pointer;transition:.25s;font-family:'Inter',sans-serif}
+.modal-btn-primary{background:var(--grad);color:#fff;border:none}
+.modal-btn-secondary{background:#fff;color:var(--dim);border:1px solid var(--line)}
+.modal-btn:hover{transform:translateY(-2px)}
+@media (max-width:768px){.cta{flex-direction:column;align-items:stretch}.anchor-scene{display:none}.controls-panel{gap:10px;padding:11px 16px}.control-btn{width:50px;height:50px}.map-panel{top:16px;right:16px;width:220px}#map-canvas{width:220px;height:165px}}
+</style>
 </head>
 <body>
-  <div id="intro-overlay">
-    <div class="tunnel-wrapper"></div>
-    <div id="intro-content">
-      <img id="overlay-logo" src="icon2.png" alt="Logo">
-      <h1>Welcome to NXT/WebXR</h1>
-      <p><strong>No downloads, no payments — just dive right in.</strong> Browse a curated stream of XR games and experiences floating right in your room. Point and click, pinch, or tap to flick through — clap your hands together to jump straight in. When you're done, come back and keep exploring. <em>Discover, experience, repeat — the rabbit hole has no end.</em></p>
-      <div id="intro-bottom-buttons">
-        <button id="start-button" class="styled-button">
-          <span class="text">Explore WebXR</span>
-          <div class="shimmer"></div>
-        </button>
-        <button id="open-on-quest-button" class="styled-button">
-          <span class="text">Open on Quest</span>
-          <div class="shimmer"></div>
-        </button>
-      </div>
-      <div id="mode-line"></div>
+
+<div class="landing" id="landing-page">
+  <div class="floor"></div>
+  <div class="glow"></div>
+  <div class="hero">
+    <h1 class="brand">NXT<span>/ExpoXR</span></h1>
+    <p class="tag">Build boundless AR exhibitions with 3D models, photos and film, locked precisely to your space.</p>
+    <div class="cta">
+      <button class="btn primary" id="build-btn">Add First Piece</button>
+      <button class="btn ghost" id="load-btn">Load Exhibit</button>
     </div>
   </div>
-
-  <div id="webxr-container">
-    <button class="exit-ar" id="exit-ar">×</button>
-    <button id="back-to-intro">←</button>
-    <div id="status"></div>
-    <audio id="clap-sound" src="sound1.wav" preload="auto"></audio>
+  <div class="anchor-scene">
+    <div class="frame3d"></div>
+    <div class="tether"></div>
+    <div class="anchor-dot"></div>
   </div>
+</div>
 
-  <script type="importmap">
-  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js" } }
-  </script>
+<div class="controls-panel" id="controls-panel">
+  <button class="control-btn add-btn" id="add-btn" title="Add media">+</button>
+  <button class="control-btn remove-btn" id="remove-btn" title="Remove">−</button>
+  <button class="control-btn mute-btn" id="mute-btn" title="Toggle sound">🔇</button>
+  <button class="control-btn save-btn" id="save-btn" title="Save exhibit">💾</button>
+  <button class="control-btn close-btn" id="close-btn" title="Exit AR">×</button>
+</div>
 
-  <script type="module">
-    import * as THREE from 'three';
+<div class="map-panel" id="map-panel">
+  <div class="map-head"><span style="color:var(--navy)">NXT<b>/Map</b></span><span id="map-info"></span></div>
+  <canvas id="map-canvas"></canvas>
+</div>
 
-    // ============================================================ helpers
-    const $ = id => document.getElementById(id);
-    const UA = navigator.userAgent;
-    const isQuest = /OculusBrowser|Quest/i.test(UA);
-    const isPico = /Pico/i.test(UA);
+<div class="modal" id="modal">
+  <div class="modal-content">
+    <h2 class="modal-title" id="modal-title"></h2>
+    <p class="modal-text" id="modal-text"></p>
+    <div class="modal-buttons">
+      <button class="modal-btn modal-btn-secondary" id="modal-cancel">Cancel</button>
+      <button class="modal-btn modal-btn-primary" id="modal-confirm">Continue</button>
+    </div>
+  </div>
+</div>
 
-    const GENERIC = new Set(['play','paint','apps','app','dist','game','games','beta','en','samples-uploads','index']);
-    function titleFrom(link) {
-      try {
-        const u = new URL(link);
-        const segs = u.pathname.split('/').filter(s => s && !/\.\w+$/.test(s) && !GENERIC.has(s.toLowerCase()));
-        let slug = segs.pop() || '';
-        if (!slug) slug = u.hostname.replace(/^www\./, '').split('.')[0];
-        let t = slug.split(/[-_]+/).map(w => w ? w[0].toUpperCase() + w.slice(1) : '').join(' ');
-        t = t.replace(/\b(vr|xr|ar)\b/gi, m => m.toUpperCase());
-        t = t.replace(/^(xr|vr|ar)(?=[a-z])/i, m => m.toUpperCase() + ' ');       // xrpet -> XR Pet
-        t = t.replace(/(?<=[a-z])(vr|xr|ar)$/i, m => ' ' + m.toUpperCase());       // brushworkvr -> Brushwork VR
-        return t.replace(/\b[a-z]/g, c => c.toUpperCase());
-      } catch { return link; }
+<div class="status-message" id="status-message"></div>
+
+<input type="file" class="file-input" id="file-input" multiple
+  accept=".obj,.glb,.gltf,.jpg,.jpeg,.png,.webp,.mp4,.webm">
+<input type="file" class="file-input" id="zip-input" accept=".zip">
+
+<script type="module">
+import * as THREE from 'three';
+import { OBJLoader } from 'https://unpkg.com/three@0.150.1/examples/jsm/loaders/OBJLoader.js';
+import { GLTFLoader } from 'https://unpkg.com/three@0.150.1/examples/jsm/loaders/GLTFLoader.js';
+
+/* ============================================================
+   NXT/ExpoXR v3.1
+   Anchor architecture unchanged: exhibitRoot welded to a
+   persistent WebXR anchor, all item transforms anchor-relative.
+
+   v3.1 — flicker & frame-drop fixes + live map:
+   · Z-FIGHT KILL: media face now sits 4 mm proud of a slimmer
+     frame, and camera near/far tightened 0.05→40 m. The old
+     1.5 mm gap inside a 0.01→60 range shimmered while moving.
+   · DOM overlay backdrop-blur disabled in AR (composited every
+     XR frame on Quest = dropped frames), solid glass instead.
+   · Framebuffer 1.5→1.2 + fixed foveation: same perceived
+     sharpness at exhibit distances, big GPU headroom for video.
+   · Frames on photos/video 75 % slimmer (border 12.5 mm, 7 mm deep).
+   · Live metric mini-map in the overlay: landing-page grid,
+     pieces to scale, orientations, nearest-neighbour distances,
+     anchor pulse, and your position + heading. Redraws at 4 Hz.
+   ============================================================ */
+
+const EXT = {
+  model: ['obj','glb','gltf'],
+  image: ['jpg','jpeg','png','webp'],
+  video: ['mp4','webm']
+};
+const MIME = { mp4:'video/mp4', webm:'video/webm', jpg:'image/jpeg', jpeg:'image/jpeg', png:'image/png', webp:'image/webp' };
+
+const LAYOUT = {
+  radius: 2.0, arcStep: Math.PI/5,
+  flatHeight: 1.4, modelHeight: 0.0,
+  flatSize: 1.0, modelSize: 0.6,
+  frameBorder: 0.0125, frameDepth: 0.007   // 75 % slimmer than v3
+};
+
+let camera, scene, renderer, exhibitRoot;
+let controllers = [];
+let items = [];
+const fileStore = new Map();
+let xrSession = null, referenceSpace = null;
+let interactionMode = 'none', selectedItem = null, removeMode = false;
+let activeControllers = new Set();
+let initialControllerPositions = {}, initialDistance = 0;
+let initialScale = new THREE.Vector3(), initialRotation = 0, baseRotY = 0;
+let placeIndex = 0, muted = true, pendingAction = null, isFirstPiece = true;
+
+// Anchor state
+let anchor = null;            // live XRAnchor this session
+let anchorUUID = null;        // persistent handle (device-local)
+let wantRestoreUUID = null;   // uuid read from a loaded exhibit
+let pendingAnchorSave = null; // resolver waiting on an XRFrame
+
+const $ = id => document.getElementById(id);
+
+init();
+
+/* ---------------- Setup ---------------- */
+function init() {
+  scene = new THREE.Scene();
+  // Tight near/far = far better depth precision on Quest's depth buffer.
+  // 0.01→60 was a z-fighting invitation; 0.05→40 covers any room exhibit.
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.05, 40);
+  renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true, powerPreference:'high-performance' });
+  renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.xr.enabled = true;
+  // 1.2x + foveation is the Quest 3 sweet spot: photos stay crisp at
+  // gallery distance and the GPU keeps ~40% headroom for video decode.
+  renderer.xr.setFramebufferScaleFactor(1.2);
+  renderer.xr.setFoveation(1.0);
+  renderer.setClearColor(0x000000, 0);
+  document.body.appendChild(renderer.domElement);
+
+  // Everything hangs off this root; its matrix is driven by the anchor.
+  exhibitRoot = new THREE.Group();
+  exhibitRoot.matrixAutoUpdate = false;
+  scene.add(exhibitRoot);
+
+  setupLights();
+
+  $('build-btn').onclick = () => items.length ? startAR() : $('file-input').click();
+  $('load-btn').onclick  = () => $('zip-input').click();
+  $('add-btn').onclick   = () => $('file-input').click();
+  $('remove-btn').onclick = toggleRemoveMode;
+  $('mute-btn').onclick  = toggleMute;
+  $('save-btn').onclick  = promptSave;
+  $('close-btn').onclick = () => xrSession && xrSession.end();
+  $('file-input').onchange = onFilesSelected;
+  $('zip-input').onchange  = onZipSelected;
+  $('modal-cancel').onclick = hideModal;
+  $('modal-confirm').onclick = () => { hideModal(true); };
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+function setupLights() {
+  scene.add(new THREE.AmbientLight(0xffffff, 1.1));
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x334455, 0.6));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+  dir.position.set(1, 2, 1);
+  scene.add(dir);
+  const dir2 = new THREE.DirectionalLight(0xffffff, 0.5);
+  dir2.position.set(-1, 1, -1);
+  scene.add(dir2);
+}
+
+// World -> exhibit-local (root may be posed by the anchor)
+const toLocal = v => exhibitRoot.worldToLocal(v.clone());
+
+/* ---------------- UI helpers ---------------- */
+function showStatus(msg, isError = false, locked = false) {
+  const el = $('status-message');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.classList.toggle('locked', locked);
+  el.style.background = isError ? 'rgba(212,58,74,.9)' : '';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+
+function showModal(title, text, action) {
+  $('modal-title').textContent = title;
+  $('modal-text').textContent = text;
+  $('modal').style.display = 'flex';
+  pendingAction = action;
+}
+function hideModal(confirmed = false) {
+  $('modal').style.display = 'none';
+  const a = pendingAction; pendingAction = null;
+  if (confirmed && a) a();
+}
+
+function updateLandingButton() {
+  $('build-btn').textContent = items.length ? `Launch AR (${items.length} pieces)` : 'Add First Piece';
+}
+
+function kindOf(filename) {
+  const ext = filename.toLowerCase().split('.').pop();
+  for (const k in EXT) if (EXT[k].includes(ext)) return { kind: k, ext };
+  return { kind: null, ext };
+}
+
+function uniqueName(name) {
+  if (!fileStore.has(name)) return name;
+  const dot = name.lastIndexOf('.');
+  const base = name.slice(0, dot), ext = name.slice(dot);
+  let n = 2;
+  while (fileStore.has(`${base}_${n}${ext}`)) n++;
+  return `${base}_${n}${ext}`;
+}
+
+/* ---------------- Adding media ---------------- */
+async function onFilesSelected(e) {
+  const files = [...e.target.files];
+  e.target.value = '';
+  for (const file of files) {
+    const { kind } = kindOf(file.name);
+    if (!kind) { showStatus(`Unsupported: ${file.name}`, true); continue; }
+    const name = uniqueName(file.name);
+    fileStore.set(name, file);
+    showStatus(`Loading ${name}…`);
+    try {
+      await addItem(file, name, kind, null);
+      showStatus(`${name} added (${items.length} pieces).`);
+    } catch (err) {
+      console.error(err);
+      fileStore.delete(name);
+      showStatus(`Failed to load ${name}`, true);
     }
-    const hostFrom = link => { try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; } };
+  }
+  updateLandingButton();
+  if (items.length && isFirstPiece && !xrSession) {
+    isFirstPiece = false;
+    setTimeout(startAR, 800);
+  }
+}
 
-    // ============================================================ tweens
-    class Tween {
-      constructor(object, property, startValue, endValue, duration, easing, onComplete) {
-        Object.assign(this, { object, property, startValue, endValue, duration, onComplete });
-        this.startTime = null; this.isActive = true; this.easing = easing || Tween.easeOutCubic;
-      }
-      static easeOutCubic(t) { return 1 - Math.pow(1 - t, 3); }
-      static easeInExpo(t) { return t === 0 ? 0 : Math.pow(2, 10 * t - 10); }
-      static easeInOutSine(t) { return -(Math.cos(Math.PI * t) - 1) / 2; }
-      update(now) {
-        if (!this.isActive) return true;
-        if (this.startTime === null) this.startTime = now;
-        const p = Math.min((now - this.startTime) / this.duration, 1);
-        const e = this.easing(p);
-        let target = this.object, prop = this.property;
-        if (Array.isArray(prop)) { for (let i = 0; i < prop.length - 1; i++) target = target[prop[i]]; prop = prop[prop.length - 1]; }
-        target[prop] = this.startValue + (this.endValue - this.startValue) * e;
-        if (p >= 1) { this.isActive = false; this.onComplete?.(); return true; }
-        return false;
-      }
+function addItem(blob, filename, kind, saved) {
+  if (kind === 'model') return addModel(blob, filename, saved);
+  if (kind === 'image') return addImage(blob, filename, saved);
+  if (kind === 'video') return addVideo(blob, filename, saved);
+  return Promise.reject(new Error('unknown kind'));
+}
+
+function addModel(blob, filename, saved) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const done = obj => { URL.revokeObjectURL(url); finalizeItem(normalizeModel(obj), filename, 'model', saved); resolve(); };
+    const fail = err => { URL.revokeObjectURL(url); reject(err); };
+    const { ext } = kindOf(filename);
+    if (ext === 'obj') new OBJLoader().load(url, done, undefined, fail);
+    else new GLTFLoader().load(url, g => done(g.scene), undefined, fail);
+  });
+}
+
+function normalizeModel(obj) {
+  obj.traverse(c => {
+    if (c.isMesh) {
+      if (!c.material) c.material = new THREE.MeshStandardMaterial({ color:0x888888, roughness:.5, metalness:.3 });
+      c.castShadow = c.receiveShadow = true;
     }
-    class TweenManager {
-      constructor() { this.tweens = []; }
-      add(t) { this.tweens.push(t); return t; }
-      update(now) { let i = this.tweens.length; while (i--) if (this.tweens[i].update(now)) this.tweens.splice(i, 1); }
-      clear() { this.tweens = []; }
+  });
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const s = LAYOUT.modelSize / Math.max(size.x, size.y, size.z, 1e-6);
+  const wrapper = new THREE.Group();
+  const center = box.getCenter(new THREE.Vector3());
+  obj.position.sub(center);
+  obj.position.y += size.y / 2;
+  wrapper.add(obj);
+  wrapper.scale.setScalar(s);
+  return wrapper;
+}
+
+function addImage(blob, filename, saved) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    new THREE.TextureLoader().load(url, tex => {
+      URL.revokeObjectURL(url);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.generateMipmaps = true;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      const group = makeFlatPiece(tex.image.width / tex.image.height, tex);
+      finalizeItem(group, filename, 'image', saved);
+      resolve();
+    }, undefined, err => { URL.revokeObjectURL(url); reject(err); });
+  });
+}
+
+function addVideo(blob, filename, saved) {
+  return new Promise((resolve, reject) => {
+    const { ext } = kindOf(filename);
+    const typed = blob.type ? blob : new Blob([blob], { type: MIME[ext] || 'video/mp4' });
+    const video = document.createElement('video');
+    video.loop = true; video.muted = muted; video.playsInline = true;
+    video.setAttribute('playsinline', ''); video.setAttribute('muted', '');
+    video.crossOrigin = 'anonymous'; video.preload = 'auto';
+    video.src = URL.createObjectURL(typed);
+    video.onloadedmetadata = () => {
+      const tex = new THREE.VideoTexture(video);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.minFilter = THREE.LinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      const group = makeFlatPiece(video.videoWidth / video.videoHeight || 16/9, tex);
+      group.userData.video = video;
+      video.play().catch(() => {});
+      finalizeItem(group, filename, 'video', saved);
+      resolve();
+    };
+    video.onerror = () => reject(new Error('video decode failed'));
+  });
+}
+
+function makeFlatPiece(aspect, texture) {
+  const w = aspect >= 1 ? LAYOUT.flatSize : LAYOUT.flatSize * aspect;
+  const h = aspect >= 1 ? LAYOUT.flatSize / aspect : LAYOUT.flatSize;
+  const B = LAYOUT.frameBorder, D = LAYOUT.frameDepth;
+  const group = new THREE.Group();
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(w + B, h + B, D),
+    new THREE.MeshStandardMaterial({ color:0x141414, roughness:.6, metalness:.25 })
+  );
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(w, h),
+    new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, toneMapped: false })
+  );
+  // 4 mm proud of the frame front — comfortably outside depth-buffer
+  // noise at room distances. The old 1.5 mm gap was the flicker.
+  face.position.z = D / 2 + 0.004;
+  group.add(frame, face);
+  return group;
+}
+
+function finalizeItem(obj, filename, kind, saved) {
+  obj.userData.isPiece = true;
+  obj.userData.filename = filename;
+  obj.userData.kind = kind;
+
+  if (saved) {
+    // Saved transforms are anchor-relative: restore verbatim.
+    obj.position.set(saved.position.x, saved.position.y, saved.position.z);
+    obj.rotation.set(saved.rotation.x, saved.rotation.y, saved.rotation.z);
+    obj.scale.set(saved.scale.x, saved.scale.y, saved.scale.z);
+  } else {
+    autoPlace(obj, kind);
+  }
+  exhibitRoot.add(obj);
+  items.push(obj);
+}
+
+function autoPlace(obj, kind) {
+  if (renderer.xr.isPresenting) {
+    // Drop new pieces 1.5 m in front of the visitor's face.
+    const cam = renderer.xr.getCamera();
+    const p = new THREE.Vector3(), d = new THREE.Vector3();
+    cam.getWorldPosition(p); cam.getWorldDirection(d);
+    d.y = 0; d.normalize();
+    p.add(d.multiplyScalar(1.5));
+    const lp = toLocal(p);
+    lp.y = kind === 'model' ? LAYOUT.modelHeight : LAYOUT.flatHeight;
+    obj.position.copy(lp);
+    if (kind !== 'model') {
+      const lc = toLocal(new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld));
+      obj.lookAt(lc.x, lp.y, lc.z);
     }
-    const tweenManager = new TweenManager();
+    placeIndex++;
+    return;
+  }
+  // Pre-AR: curved gallery wall centred on the anchor origin.
+  const i = placeIndex++;
+  const perRow = 5;
+  const row = Math.floor(i / perRow), col = i % perRow;
+  const angle = (col - (perRow - 1) / 2) * LAYOUT.arcStep;
+  const r = LAYOUT.radius + row * 1.2;
+  const y = kind === 'model' ? LAYOUT.modelHeight : LAYOUT.flatHeight;
+  obj.position.set(Math.sin(angle) * r, y, -Math.cos(angle) * r);
+  if (kind !== 'model') obj.lookAt(0, y, 0);
+}
 
-    // ============================================================ text & buttons (canvas-textured, crisp in-world UI)
-    function makeTextPlane(w, h, pxW, pxH) {
-      const canvas = document.createElement('canvas');
-      canvas.width = pxW; canvas.height = pxH;
-      const ctx = canvas.getContext('2d');
-      const tex = new THREE.CanvasTexture(canvas);
-      tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-      return { mesh, ctx, canvas, tex };
+/* ---------------- Remove / clear ---------------- */
+function removeItem(obj) {
+  const i = items.indexOf(obj);
+  if (i === -1) return;
+  items.splice(i, 1);
+  fileStore.delete(obj.userData.filename);
+  disposeItem(obj);
+  updateLandingButton();
+  showStatus('Piece removed.');
+}
+
+function disposeItem(obj) {
+  exhibitRoot.remove(obj);
+  if (obj.userData.video) {
+    obj.userData.video.pause();
+    URL.revokeObjectURL(obj.userData.video.src);
+    obj.userData.video.src = '';
+  }
+  obj.traverse(c => {
+    if (c.geometry) c.geometry.dispose();
+    const mats = Array.isArray(c.material) ? c.material : c.material ? [c.material] : [];
+    mats.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+  });
+}
+
+function clearAll() {
+  [...items].forEach(disposeItem);
+  items = [];
+  fileStore.clear();
+  placeIndex = 0;
+  anchor = null; anchorUUID = null; wantRestoreUUID = null;
+  exhibitRoot.matrix.identity();
+  exhibitRoot.updateMatrixWorld(true);
+}
+
+/* ---------------- Persistent anchors ---------------- */
+// Anchor creation needs an XRFrame; the render loop resolves this.
+function createExhibitAnchor() {
+  return new Promise(res => { pendingAnchorSave = res; });
+}
+
+async function ensureAnchor() {
+  if (anchor && anchorUUID) return anchorUUID;   // already welded this session
+  if (!xrSession) return null;
+  return await createExhibitAnchor();
+}
+
+async function tryRestoreAnchor(session) {
+  const uuid = anchorUUID || wantRestoreUUID;
+  if (!uuid || !session.restorePersistentAnchor) return;
+  try {
+    anchor = await session.restorePersistentAnchor(uuid);
+    anchorUUID = uuid; wantRestoreUUID = null;
+    showStatus('Room anchor restored. Every piece is locked in place.', false, true);
+  } catch {
+    anchor = null;
+    showStatus('Anchor not found on this headset. Using your standing spot instead.');
+  }
+}
+
+/* ---------------- Save / load exhibit ---------------- */
+function promptSave() {
+  if (!items.length) { showStatus('Nothing to save!', true); return; }
+  showModal(
+    'Save Exhibit',
+    'The exhibit is welded to a persistent room anchor: reload on THIS headset and every piece snaps back exactly, wherever you stand. For a different headset, also mark your standing spot and facing direction (tape works) and start AR from there.',
+    saveExhibit
+  );
+}
+
+async function saveExhibit() {
+  try {
+    showStatus('Locking room anchor…');
+    const uuid = await ensureAnchor();
+    showStatus('Packing exhibit…');
+    const zip = new JSZip();
+    const data = {
+      version: '3.1',
+      created: new Date().toISOString(),
+      anchorUUID: uuid,
+      items: items.map(o => ({
+        filename: o.userData.filename,
+        kind: o.userData.kind,
+        position: { x:o.position.x, y:o.position.y, z:o.position.z },
+        rotation: { x:o.rotation.x, y:o.rotation.y, z:o.rotation.z },
+        scale:    { x:o.scale.x,    y:o.scale.y,    z:o.scale.z }
+      }))
+    };
+    for (const o of items) {
+      const f = fileStore.get(o.userData.filename);
+      if (f) zip.file(`media/${o.userData.filename}`, f);
+      else console.warn('Missing file data:', o.userData.filename);
     }
-    function drawPill(ctx, canvas, label, fontPx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const r = canvas.height / 2 - 6;
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(6, 6, canvas.width - 12, canvas.height - 12, r);
-      else ctx.rect(6, 6, canvas.width - 12, canvas.height - 12);
-      ctx.fill(); ctx.stroke();
-      ctx.font = `500 ${fontPx}px "Helvetica Neue", Arial, sans-serif`;
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 2);
+    zip.file('exhibit.json', JSON.stringify(data, null, 2));
+    const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `NXT-ExpoXR_${new Date().toISOString().slice(0,10)}.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    showStatus(uuid
+      ? `Saved. ${items.length} pieces, anchor-locked.`
+      : `Saved. ${items.length} pieces (no anchor support, standing-spot mode).`, false, !!uuid);
+  } catch (err) {
+    console.error(err);
+    showStatus('Save failed.', true);
+  }
+}
+
+function onZipSelected(e) {
+  if (!e.target.files.length) return;
+  const file = e.target.files[0];
+  e.target.value = '';
+  showModal(
+    'Load Exhibit',
+    'If this exhibit was saved on this headset, the room anchor restores every piece exactly and you can stand anywhere. Otherwise, stand on the marked spot facing the marked direction before continuing.',
+    () => loadExhibit(file)
+  );
+}
+
+async function loadExhibit(file) {
+  try {
+    showStatus('Unpacking exhibit…');
+    clearAll();
+    const zip = await JSZip.loadAsync(file);
+    const cfg = zip.file('exhibit.json');
+    if (!cfg) throw new Error('exhibit.json missing');
+    const data = JSON.parse(await cfg.async('text'));
+    wantRestoreUUID = data.anchorUUID || null;
+
+    // v3/v2 use items[] + media/, v1 used models[] + models/
+    const list = data.items || (data.models || []).map(m => ({ ...m, kind: kindOf(m.filename).kind || 'model' }));
+    const dir = data.items ? 'media' : 'models';
+    showStatus(`Loading ${list.length} pieces…`);
+
+    let ok = 0;
+    for (const entry of list) {
+      const zf = zip.file(`${dir}/${entry.filename}`);
+      if (!zf) { console.warn('Missing in zip:', entry.filename); continue; }
+      const blob = await zf.async('blob');
+      fileStore.set(entry.filename, blob);
+      try { await addItem(blob, entry.filename, entry.kind, entry); ok++; }
+      catch (err) { console.error(entry.filename, err); fileStore.delete(entry.filename); }
     }
-    function makeButton(label, w, h, fontPx, onClick, hoverScale = 1.15) {
-      const t = makeTextPlane(w, h, Math.round(w * 2000), Math.round(h * 2000));
-      drawPill(t.ctx, t.canvas, label, fontPx); t.tex.needsUpdate = true;
-      t.mesh.userData = { onClick, hoverable: true, baseScale: 1, hoverScale };
-      return t.mesh;
-    }
+    placeIndex = items.length;
+    updateLandingButton();
+    if (!ok) throw new Error('no pieces loaded');
+    showStatus(`Exhibit restored: ${ok} pieces.`);
+    setTimeout(startAR, 800);
+  } catch (err) {
+    console.error(err);
+    showStatus('Could not load exhibit. Check the file.', true);
+  }
+}
 
-    // ============================================================ global state
-    let renderer, scene, camera, raycaster, tempMatrix;
-    let xrSession = null, SESSION_KIND = null, controllers = [], gallery = null;
-    let clapDone = false, redirectURL = null, lastClapDist = null, lastClapT = 0, sessionStart = 0;
-    let envMeshes = [], hovered = null, starting = false;
-    const inline = { active: false, yaw: 0, pitch: 0, ac: null };
-    let MODE = 'inline';
-
-    // ============================================================ capability probe (Quest 3 / Pico Ultra -> AR, Pico 4 -> VR, desktop -> 3D preview)
-    (async () => {
-      if (navigator.xr) {
-        try {
-          if (await navigator.xr.isSessionSupported('immersive-ar')) MODE = 'ar';
-          else if (await navigator.xr.isSessionSupported('immersive-vr')) MODE = 'vr';
-        } catch (e) { /* probe blocked -> inline */ }
-      }
-      $('start-button').querySelector('.text').textContent =
-        MODE === 'ar' ? 'Enter Passthrough' : MODE === 'vr' ? 'Enter VR' : 'Preview in 3D';
-      $('mode-line').textContent =
-        MODE === 'ar' ? (isQuest ? 'Meta Quest detected · passthrough ready' : isPico ? 'PICO detected · passthrough ready' : 'Passthrough AR ready on this device')
-        : MODE === 'vr' ? 'Headset detected · immersive VR ready'
-        : 'No headset detected · desktop 3D preview — send it to your Quest below';
-      if (isQuest || isPico || MODE !== 'inline') $('open-on-quest-button').style.display = 'none';
-    })();
-
-    // ============================================================ landing
-    document.addEventListener('DOMContentLoaded', () => {
-      const tunnel = document.querySelector('.tunnel-wrapper');
-      for (let i = 0; i < 6; i++) {
-        const sq = document.createElement('div');
-        sq.classList.add('square');
-        sq.style.animationDelay = `${i * 1667}ms`;
-        tunnel.appendChild(sq);
-      }
-      const introOverlay = $('intro-overlay'), webxrContainer = $('webxr-container');
-
-      $('open-on-quest-button').addEventListener('click', () => {
-        const url = window.location.href;
-        if (!url.startsWith('https://')) return alert('Error: The URL must start with "https://".');
-        window.location.href = `https://www.oculus.com/open_url/?url=${encodeURIComponent(url)}`;
-      });
-
-      $('start-button').addEventListener('click', async () => {
-        if (starting) return; starting = true;
-        $('start-button').disabled = true;
-        if (!gallery) gallery = new Gallery();
-        gallery.resumeAudioContext();                       // must happen inside the user gesture
-        introOverlay.classList.add('fade-out');
-        setTimeout(async () => {
-          introOverlay.style.display = 'none';
-          webxrContainer.style.display = 'block';
-          initEngine();
-          await startSession();
-          starting = false; $('start-button').disabled = false;
-        }, 500);
-      });
-
-      const goHome = () => {
-        if (inline.active) stopInline();
-        if (xrSession) { try { xrSession.end(); } catch (e) {} }
-        webxrContainer.classList.add('fade-out');
-        setTimeout(() => {
-          webxrContainer.style.display = 'none';
-          webxrContainer.classList.remove('fade-out');
-          introOverlay.style.display = 'flex';
-          introOverlay.classList.remove('fade-out');
-          introOverlay.classList.add('fade-in');
-          cleanupScene();
-        }, 500);
-      };
-      $('back-to-intro').addEventListener('click', goHome);
-      $('exit-ar').addEventListener('click', () => {
-        if (xrSession) { try { xrSession.end(); } catch (e) {} }
-        else if (inline.active) goHome();
-      });
+/* ---------------- XR session ---------------- */
+function startAR() {
+  if (!navigator.xr) { showStatus('WebXR not supported in this browser.', true); return; }
+  navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+    if (!supported) { showStatus('Immersive AR not supported on this device.', true); return; }
+    navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local-floor'],
+      optionalFeatures: ['anchors', 'dom-overlay', 'hand-tracking'],
+      domOverlay: { root: document.body }
+    }).then(onSessionStarted).catch(err => {
+      console.error(err);
+      showStatus('Could not start AR session.', true);
     });
+  });
+}
 
-    // ============================================================ engine (renderer persists across sessions — warm restarts)
-    function initEngine() {
-      if (!renderer) {
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-        renderer.xr.enabled = true;
-        renderer.setClearColor(0x000000, 0);
-        raycaster = new THREE.Raycaster();
-        tempMatrix = new THREE.Matrix4();
-        window.addEventListener('resize', () => {
-          if (camera) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); }
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+async function onSessionStarted(session) {
+  xrSession = session;
+  document.body.classList.add('xr-active');
+
+  // local-floor ONLY: a single, deterministic space. The anchor does
+  // the re-localisation; mixing unbounded/local across save & load
+  // was a drift source.
+  for (const type of ['local-floor', 'local']) {
+    try { referenceSpace = await session.requestReferenceSpace(type); break; }
+    catch { /* try next */ }
+  }
+  renderer.xr.setReferenceSpace(referenceSpace);
+  renderer.xr.setSession(session);
+  setupControllers();
+  renderer.setAnimationLoop(render);
+  session.addEventListener('end', onSessionEnd);
+
+  await tryRestoreAnchor(session);
+
+  items.forEach(o => o.userData.video && o.userData.video.play().catch(() => {}));
+  showStatus('AR active. Grab pieces with the trigger; two hands to scale & rotate.');
+}
+
+function onSessionEnd() {
+  document.body.classList.remove('xr-active');
+  controllers.forEach(c => scene.remove(c));
+  controllers = [];
+  activeControllers.clear();
+  selectedItem = null;
+  removeMode = false;
+  $('remove-btn').classList.remove('active');
+  interactionMode = 'none';
+  referenceSpace = null;
+  anchor = null; // XRAnchor dies with the session; anchorUUID survives for restore
+  renderer.setAnimationLoop(null);
+  xrSession = null;
+  items.forEach(o => o.userData.video && o.userData.video.pause());
+}
+
+/* ---------------- Controllers & interaction ----------------
+   All manipulation happens in exhibitRoot-local space, so item
+   transforms stay anchor-relative and save/load is exact.      */
+function setupControllers() {
+  for (let i = 0; i < 2; i++) {
+    const c = renderer.xr.getController(i);
+    c.userData.id = i;
+    c.addEventListener('selectstart', onSelectStart);
+    c.addEventListener('selectend', onSelectEnd);
+    scene.add(c);
+    controllers.push(c);
+  }
+}
+
+function grabRadius(obj) {
+  const sphere = new THREE.Box3().setFromObject(obj).getBoundingSphere(new THREE.Sphere());
+  return Math.max(0.5, sphere.radius * 1.15);
+}
+
+function findNearest(pos) {
+  let best = null, bestScore = 1;
+  for (const o of items) {
+    const p = new THREE.Vector3();
+    o.getWorldPosition(p);
+    const score = pos.distanceTo(p) / grabRadius(o);
+    if (score < bestScore) { bestScore = score; best = o; }
+  }
+  return best;
+}
+
+function onSelectStart(e) {
+  const controller = e.target;
+  const pos = new THREE.Vector3();
+  controller.getWorldPosition(pos);
+  activeControllers.add(controller.userData.id);
+
+  if (removeMode) {
+    const hit = findNearest(pos);
+    if (hit) removeItem(hit);
+    return;
+  }
+
+  if (interactionMode === 'none') {
+    const hit = findNearest(pos);
+    if (hit) {
+      selectedItem = hit;
+      interactionMode = 'move';
+      highlight(hit, true);
+      hit.userData.grabOffset = new THREE.Vector3().subVectors(hit.position, toLocal(pos));
+      showStatus('Moving. Add second hand to scale & rotate.');
+    }
+  } else if (interactionMode === 'move' && activeControllers.size === 2) {
+    interactionMode = 'transform';
+    controllers.forEach(c => {
+      const p = new THREE.Vector3();
+      c.getWorldPosition(p);
+      initialControllerPositions[c.userData.id] = toLocal(p);
+    });
+    initialDistance = initialControllerPositions[0].distanceTo(initialControllerPositions[1]);
+    initialScale.copy(selectedItem.scale);
+    baseRotY = selectedItem.rotation.y;
+    const v = new THREE.Vector3().subVectors(initialControllerPositions[1], initialControllerPositions[0]);
+    initialRotation = Math.atan2(v.x, v.z);
+    showStatus('Scale & rotate!');
+  }
+}
+
+function onSelectEnd(e) {
+  activeControllers.delete(e.target.userData.id);
+  if (!selectedItem) return;
+
+  if (interactionMode === 'transform' && activeControllers.size === 1) {
+    interactionMode = 'move';
+    const c = controllers[[...activeControllers][0]];
+    const pos = new THREE.Vector3();
+    c.getWorldPosition(pos);
+    selectedItem.userData.grabOffset = new THREE.Vector3().subVectors(selectedItem.position, toLocal(pos));
+  } else if (activeControllers.size === 0) {
+    highlight(selectedItem, false);
+    selectedItem.userData.grabOffset = null;
+    selectedItem = null;
+    interactionMode = 'none';
+    initialControllerPositions = {};
+    if (!removeMode) showStatus('Piece anchored.');
+  }
+}
+
+function handleInteraction() {
+  if (!selectedItem) return;
+
+  if (interactionMode === 'move' && activeControllers.size === 1) {
+    const c = controllers[[...activeControllers][0]];
+    const pos = new THREE.Vector3();
+    c.getWorldPosition(pos);
+    if (selectedItem.userData.grabOffset)
+      selectedItem.position.copy(toLocal(pos)).add(selectedItem.userData.grabOffset);
+
+  } else if (interactionMode === 'transform' && activeControllers.size === 2) {
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    controllers[0].getWorldPosition(a);
+    controllers[1].getWorldPosition(b);
+    const la = toLocal(a), lb = toLocal(b);
+
+    if (initialDistance > 0) {
+      const f = THREE.MathUtils.clamp(la.distanceTo(lb) / initialDistance, 0.05, 20);
+      selectedItem.scale.copy(initialScale).multiplyScalar(f);
+    }
+    const v = new THREE.Vector3().subVectors(lb, la);
+    selectedItem.rotation.y = baseRotY + (Math.atan2(v.x, v.z) - initialRotation);
+    selectedItem.position.copy(la).add(lb).multiplyScalar(0.5);
+  }
+}
+
+/* ---------------- Highlight / modes ---------------- */
+function highlight(obj, on) {
+  if (!obj) return;
+  const color = removeMode ? 0xff2222 : 0x2288ff;
+  obj.traverse(c => {
+    if (!c.isMesh || !c.material) return;
+    const m = c.material;
+    if (m.emissive) {
+      if (on) {
+        m._origEmissive ??= m.emissive.clone();
+        m.emissive.setHex(color);
+        m.emissiveIntensity = 0.45;
+      } else if (m._origEmissive) {
+        m.emissive.copy(m._origEmissive);
+        m.emissiveIntensity = 0;
       }
-      if (!renderer.domElement.parentNode) $('webxr-container').appendChild(renderer.domElement);
-      scene = new THREE.Scene();
-      camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 60);
-      scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-      envMeshes = []; hovered = null;
-    }
-
-    // ============================================================ session cascade: AR -> VR -> inline. Nothing "unsupported", ever.
-    async function startSession() {
-      sessionStart = performance.now();
-      clapDone = false; redirectURL = null; lastClapDist = null; lastClapT = 0;
-      $('clap-sound').load();
-      const feats = { optionalFeatures: ['hand-tracking', 'local-floor', 'dom-overlay'], domOverlay: { root: $('webxr-container') } };
-      if (navigator.xr) {
-        try {
-          if (await navigator.xr.isSessionSupported('immersive-ar'))
-            return onSessionStarted(await navigator.xr.requestSession('immersive-ar', feats), 'ar');
-        } catch (e) { console.warn('AR session failed, falling back:', e); }
-        try {
-          if (await navigator.xr.isSessionSupported('immersive-vr'))
-            return onSessionStarted(await navigator.xr.requestSession('immersive-vr', feats), 'vr');
-        } catch (e) { console.warn('VR session failed, falling back:', e); }
+    } else if (m.color) {
+      if (on) {
+        m._origColor ??= m.color.clone();
+        m.color.setHex(removeMode ? 0xff9999 : 0x99ccff);
+      } else if (m._origColor) {
+        m.color.copy(m._origColor);
       }
-      startInline();
     }
+  });
+}
 
-    async function onSessionStarted(session, kind) {
-      xrSession = session; SESSION_KIND = kind;
-      document.body.classList.add('xr-active');
-      renderer.xr.setReferenceSpaceType('local');
-      await renderer.xr.setSession(session);
-      try {  // run at the headset's sweet spot (90Hz on Quest 3 & Pico) — smoother, cooler, longer battery
-        const rates = session.supportedFrameRates;
-        if (rates?.length) { const best = [...rates].filter(r => r <= 91).sort((a, b) => b - a)[0]; if (best) session.updateTargetFrameRate(best); }
-      } catch (e) {}
-      try { renderer.xr.setFoveation(1); } catch (e) {}   // free GPU headroom on both headsets
+function toggleRemoveMode() {
+  removeMode = !removeMode;
+  $('remove-btn').classList.toggle('active', removeMode);
+  items.forEach(o => highlight(o, removeMode));
+  showStatus(removeMode ? 'Remove mode: squeeze trigger near a piece to delete.' : 'Remove mode off.');
+}
 
-      buildControllers();
-      if (kind === 'vr') addEnvironment();
-      gallery.begin(scene, camera, kind);
-      renderer.setAnimationLoop(render);
-      session.addEventListener('end', onSessionEnd);
-      status(kind === 'ar' ? 'Point & click or pinch to browse · Clap to launch' : 'Point & click to browse · Clap to launch');
+function toggleMute() {
+  muted = !muted;
+  $('mute-btn').textContent = muted ? '🔇' : '🔊';
+  items.forEach(o => {
+    const v = o.userData.video;
+    if (v) { v.muted = muted; v.play().catch(() => {}); }
+  });
+  showStatus(muted ? 'Videos muted.' : 'Sound on.');
+}
+
+/* ---------------- Live exhibit map ----------------
+   Top-down, metric, drawn on the landing-page grid so the 2D
+   overlay speaks the same design language. Throttled to 4 Hz —
+   the XR render loop never waits on the DOM.                  */
+const mapCv = $('map-canvas'), mapCtx = mapCv.getContext('2d');
+const MDPR = 2;
+let lastMap = 0;
+const NAVY = '#1C2951', A1 = '#3E6DF3', A2 = '#5AA5F7', DIM = '#5A6478';
+
+function fitMapCanvas() {
+  const r = mapCv.getBoundingClientRect();
+  mapCv.width  = Math.max(1, Math.round(r.width  * MDPR));
+  mapCv.height = Math.max(1, Math.round(r.height * MDPR));
+}
+
+function itemRadius(o) {
+  // Bounding-sphere radius, cached & invalidated on scale change.
+  if (o.userData.mapR == null || o.userData.mapS !== o.scale.x) {
+    const s = new THREE.Box3().setFromObject(o).getBoundingSphere(new THREE.Sphere());
+    o.userData.mapR = Math.max(0.1, s.radius);
+    o.userData.mapS = o.scale.x;
+  }
+  return o.userData.mapR;
+}
+
+function drawMap() {
+  if (!mapCv.width) fitMapCanvas();
+  const ctx = mapCtx, W = mapCv.width, H = mapCv.height;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  // Everything in exhibit-local space: anchor origin = (0,0), like reality.
+  const pts = items.map(o => ({ o, x:o.position.x, z:o.position.z, r:itemRadius(o) }));
+
+  let vx = 0, vz = 0, hx = 0, hz = 1, hasV = false;
+  if (renderer.xr.isPresenting) {
+    const cam = renderer.xr.getCamera();
+    const p = toLocal(new THREE.Vector3().setFromMatrixPosition(cam.matrixWorld));
+    const d = new THREE.Vector3();
+    cam.getWorldDirection(d);
+    d.applyQuaternion(exhibitRoot.getWorldQuaternion(new THREE.Quaternion()).invert());
+    vx = p.x; vz = p.z; hx = d.x; hz = d.z; hasV = true;
+  }
+
+  // Bounds: anchor + all pieces + viewer, min 3 m span.
+  let minX = -0.4, maxX = 0.4, minZ = -0.4, maxZ = 0.4;
+  if (hasV) { minX = Math.min(minX, vx - .4); maxX = Math.max(maxX, vx + .4); minZ = Math.min(minZ, vz - .4); maxZ = Math.max(maxZ, vz + .4); }
+  for (const p of pts) {
+    minX = Math.min(minX, p.x - p.r); maxX = Math.max(maxX, p.x + p.r);
+    minZ = Math.min(minZ, p.z - p.r); maxZ = Math.max(maxZ, p.z + p.r);
+  }
+  const spanX = Math.max(3, maxX - minX), spanZ = Math.max(3, maxZ - minZ);
+  const pad = 22 * MDPR;
+  const s = Math.min((W - pad * 2) / spanX, (H - pad * 2) / spanZ);
+  const cx = (minX + maxX) / 2, cz = (minZ + maxZ) / 2;
+  const X = x => W / 2 + (x - cx) * s;
+  const Z = z => H / 2 + (z - cz) * s;
+
+  // Metric grid, same rhythm as the landing floor. Fine grid when zoomed.
+  const g = s > 95 * MDPR ? 0.5 : 1;
+  ctx.strokeStyle = 'rgba(28,41,81,.10)';
+  ctx.lineWidth = 1 * MDPR;
+  for (let x = Math.floor((cx - W / (2 * s)) / g) * g; X(x) < W; x += g) {
+    ctx.beginPath(); ctx.moveTo(X(x), 0); ctx.lineTo(X(x), H); ctx.stroke();
+  }
+  for (let z = Math.floor((cz - H / (2 * s)) / g) * g; Z(z) < H; z += g) {
+    ctx.beginPath(); ctx.moveTo(0, Z(z)); ctx.lineTo(W, Z(z)); ctx.stroke();
+  }
+
+  // Anchor origin: the pulsing dot from the landing page, now for real.
+  ctx.beginPath(); ctx.arc(X(0), Z(0), 6 * MDPR, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(62,109,243,.35)'; ctx.lineWidth = 2 * MDPR; ctx.stroke();
+  ctx.beginPath(); ctx.arc(X(0), Z(0), 3 * MDPR, 0, Math.PI * 2);
+  ctx.fillStyle = A1; ctx.fill();
+
+  // Nearest-neighbour distance lines between pieces.
+  ctx.font = `500 ${9 * MDPR}px Inter, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const done = new Set();
+  for (let i = 0; i < pts.length; i++) {
+    let bj = -1, bd = Infinity;
+    for (let j = 0; j < pts.length; j++) {
+      if (i === j) continue;
+      const d = Math.hypot(pts[i].x - pts[j].x, pts[i].z - pts[j].z);
+      if (d < bd) { bd = d; bj = j; }
     }
+    if (bj < 0) continue;
+    const key = Math.min(i, bj) + '-' + Math.max(i, bj);
+    if (done.has(key)) continue;
+    done.add(key);
+    const x1 = X(pts[i].x), y1 = Z(pts[i].z), x2 = X(pts[bj].x), y2 = Z(pts[bj].z);
+    ctx.setLineDash([3 * MDPR, 4 * MDPR]);
+    ctx.strokeStyle = 'rgba(90,100,120,.5)'; ctx.lineWidth = 1 * MDPR;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    ctx.setLineDash([]);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, label = bd.toFixed(2) + ' m';
+    const tw = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,.88)';
+    ctx.fillRect(mx - tw / 2 - 3 * MDPR, my - 6.5 * MDPR, tw + 6 * MDPR, 13 * MDPR);
+    ctx.fillStyle = DIM; ctx.fillText(label, mx, my);
+  }
 
-    function onSessionEnd() {
-      document.body.classList.remove('xr-active');
-      $('status').style.display = 'none';
-      renderer.setAnimationLoop(null);
-      controllers = []; xrSession = null; SESSION_KIND = null;
-      tweenManager.clear();
-      cleanupScene();
-      if (redirectURL) setTimeout(() => window.location.href = redirectURL, 200);
+  // Pieces, to scale. Flats drawn as oriented wall segments, models as discs.
+  for (const p of pts) {
+    const sel = p.o === selectedItem;
+    const px = X(p.x), pz = Z(p.z), pr = Math.max(3 * MDPR, p.r * s);
+    if (p.o.userData.kind === 'model') {
+      ctx.beginPath(); ctx.arc(px, pz, pr, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(28,41,81,.18)'; ctx.fill();
+      ctx.strokeStyle = NAVY; ctx.lineWidth = 1.5 * MDPR; ctx.stroke();
+    } else {
+      const ry = p.o.rotation.y;                    // width axis after rotY
+      const dx = Math.cos(ry), dz = -Math.sin(ry);  // local X → screen
+      ctx.beginPath();
+      ctx.moveTo(px - dx * pr, pz - dz * pr);
+      ctx.lineTo(px + dx * pr, pz + dz * pr);
+      ctx.strokeStyle = p.o.userData.kind === 'video' ? A2 : A1;
+      ctx.lineWidth = 3.5 * MDPR; ctx.lineCap = 'round'; ctx.stroke();
     }
-
-    function cleanupScene() {
-      gallery?.teardown();
-      if (scene) scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.()); });
-      if (scene) while (scene.children.length) scene.remove(scene.children[0]);
-      envMeshes = []; hovered = null;
-      document.querySelectorAll('video').forEach(v => { v.pause(); v.volume = 0; });
+    if (sel) {
+      ctx.beginPath(); ctx.arc(px, pz, pr + 5 * MDPR, 0, Math.PI * 2);
+      ctx.strokeStyle = A2; ctx.lineWidth = 2 * MDPR;
+      ctx.setLineDash([4 * MDPR, 4 * MDPR]); ctx.stroke(); ctx.setLineDash([]);
     }
+  }
 
-    // ============================================================ inline 3D preview (desktop / any browser — the "works everywhere" tier)
-    function startInline() {
-      inline.active = true;
-      document.body.classList.add('xr-active');
-      addEnvironment();
-      camera.position.set(0, 0, 0);
-      gallery.begin(scene, camera, 'inline');
-      renderer.setAnimationLoop(render);
+  // The visitor: heading arrow, plus distance to the nearest piece.
+  if (hasV) {
+    let near = null, nd = Infinity;
+    for (const p of pts) {
+      const d = Math.hypot(p.x - vx, p.z - vz);
+      if (d < nd) { nd = d; near = p; }
+    }
+    if (near) {
+      ctx.setLineDash([2 * MDPR, 5 * MDPR]);
+      ctx.strokeStyle = 'rgba(62,109,243,.55)'; ctx.lineWidth = 1 * MDPR;
+      ctx.beginPath(); ctx.moveTo(X(vx), Z(vz)); ctx.lineTo(X(near.x), Z(near.z)); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = A1;
+      ctx.fillText(nd.toFixed(2) + ' m', (X(vx) + X(near.x)) / 2, (Z(vz) + Z(near.z)) / 2 - 8 * MDPR);
+    }
+    const a = Math.atan2(hz, hx);
+    ctx.save();
+    ctx.translate(X(vx), Z(vz));
+    ctx.rotate(a);
+    ctx.beginPath();
+    ctx.moveTo(7 * MDPR, 0); ctx.lineTo(-5 * MDPR, 4.5 * MDPR); ctx.lineTo(-5 * MDPR, -4.5 * MDPR);
+    ctx.closePath();
+    ctx.fillStyle = NAVY; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 * MDPR; ctx.stroke();
+    ctx.restore();
+  }
 
-      inline.ac = new AbortController();
-      const el = renderer.domElement, sig = { signal: inline.ac.signal };
-      let downX = 0, downY = 0, dragging = false, moved = 0;
-      const ndc = new THREE.Vector2();
-      const castFromMouse = e => {
-        ndc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-        raycaster.setFromCamera(ndc, camera);
-        return raycaster.intersectObjects(gallery.interactives(), true);
-      };
-      el.addEventListener('pointerdown', e => { dragging = true; moved = 0; downX = e.clientX; downY = e.clientY; }, sig);
-      el.addEventListener('pointermove', e => {
-        if (dragging) {
-          inline.yaw -= (e.clientX - downX) * 0.004;
-          inline.pitch = Math.max(-1.2, Math.min(1.2, inline.pitch - (e.clientY - downY) * 0.004));
-          moved += Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY);
-          downX = e.clientX; downY = e.clientY;
-          camera.rotation.set(inline.pitch, inline.yaw, 0, 'YXZ');
-        } else {
-          const hits = castFromMouse(e);
-          setHovered(hits.length ? rootOf(hits[0].object) : null, null);
-          el.style.cursor = hits.length ? 'pointer' : 'grab';
+  $('map-info').textContent = `${items.length} piece${items.length === 1 ? '' : 's'} · grid ${g} m`;
+}
+
+/* ---------------- Render loop ---------------- */
+function render(time, frame) {
+  // 1) Weld exhibitRoot to the anchor's re-localised pose every frame.
+  if (frame && anchor && referenceSpace) {
+    const pose = frame.getPose(anchor.anchorSpace, referenceSpace);
+    if (pose) {
+      exhibitRoot.matrix.fromArray(pose.transform.matrix);
+      exhibitRoot.updateMatrixWorld(true);
+    }
+  }
+
+  // 2) A save is waiting for an XRFrame to mint a persistent anchor.
+  if (frame && pendingAnchorSave && referenceSpace) {
+    const done = pendingAnchorSave; pendingAnchorSave = null;
+    if (frame.createAnchor) {
+      frame.createAnchor(new XRRigidTransform(), referenceSpace).then(async a => {
+        if (anchorUUID && xrSession?.deletePersistentAnchor) {
+          try { await xrSession.deletePersistentAnchor(anchorUUID); } catch {}
         }
-      }, sig);
-      el.addEventListener('pointerup', e => {
-        dragging = false;
-        if (moved < 8) { const hits = castFromMouse(e); if (hits.length) { gallery.notifyInteraction(); rootOf(hits[0].object)?.userData.onClick(); } }
-      }, sig);
-      status('Drag to look around · Click ‹ › to browse · Launch opens in a new tab');
-    }
+        anchor = a;
+        anchorUUID = a.requestPersistentHandle ? await a.requestPersistentHandle() : null;
+        done(anchorUUID);
+      }).catch(() => done(null));
+    } else done(null);
+  }
 
-    function stopInline() {
-      inline.active = false;
-      inline.ac?.abort();
-      renderer.setAnimationLoop(null);
-      document.body.classList.remove('xr-active');
-      $('status').style.display = 'none';
-      tweenManager.clear();
-    }
+  if (selectedItem && interactionMode !== 'none') handleInteraction();
 
-    // ============================================================ controllers: laser rays, cursor dots, haptics — works for hands & controllers
-    function buildControllers() {
-      controllers = [0, 1].map(i => {
-        const c = renderer.xr.getController(i);
-        c.userData = { id: i, connected: false, gamepad: null, isSelecting: false };
-        const ray = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
-          new THREE.LineBasicMaterial({ color: gallery.sharedColor, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
-        ray.name = 'ray'; ray.scale.z = 1.5; c.add(ray);
-        const tip = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
-        c.add(tip);
-        const cursor = new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
-        cursor.visible = false; scene.add(cursor); c.userData.cursor = cursor;
-        c.addEventListener('connected', e => { c.userData.connected = true; c.userData.gamepad = e.data?.gamepad || null; });
-        c.addEventListener('disconnected', () => { c.userData.connected = false; c.userData.gamepad = null; c.userData.cursor.visible = false; });
-        c.addEventListener('selectstart', onSelectStart);
-        c.addEventListener('selectend', e => e.target.userData.isSelecting = false);
-        scene.add(c);
-        return c;
-      });
-    }
-    function pulse(c, intensity, ms) { try { c?.userData.gamepad?.hapticActuators?.[0]?.pulse(intensity, ms); } catch (e) {} }
-    function rootOf(o) { while (o) { if (o.userData?.onClick) return o; o = o.parent; } return null; }
+  // 3) Mini-map at 4 Hz — DOM work stays off the hot path.
+  if (time - lastMap > 250) { lastMap = time; drawMap(); }
 
-    function onSelectStart(event) {
-      const c = event.target;
-      c.userData.isSelecting = true;
-      gallery?.notifyInteraction();
-      tempMatrix.identity().extractRotation(c.matrixWorld);
-      raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
-      raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-      const hits = raycaster.intersectObjects(gallery.interactives(), true);
-      if (hits.length) { pulse(c, 0.6, 40); rootOf(hits[0].object)?.userData.onClick(); }
-    }
-
-    function setHovered(obj, ctrl) {
-      if (obj === hovered) return;
-      const scaleTo = (m, s) => { if (!m) return;
-        tweenManager.add(new Tween(m.scale, 'x', m.scale.x, s, 180, Tween.easeOutCubic));
-        tweenManager.add(new Tween(m.scale, 'y', m.scale.y, s, 180, Tween.easeOutCubic));
-      };
-      if (hovered) scaleTo(hovered, hovered.userData.baseScale ?? 1);
-      hovered = obj;
-      if (obj) { scaleTo(obj, (obj.userData.baseScale ?? 1) * (obj.userData.hoverScale ?? 1.12)); pulse(ctrl, 0.25, 12); }
-    }
-
-    function updatePointers() {
-      if (!controllers.length) return;
-      let best = null, bestCtrl = null;
-      for (const c of controllers) {
-        const cur = c.userData.cursor, ray = c.getObjectByName('ray');
-        if (!c.userData.connected) { if (cur) cur.visible = false; continue; }
-        tempMatrix.identity().extractRotation(c.matrixWorld);
-        raycaster.ray.origin.setFromMatrixPosition(c.matrixWorld);
-        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-        const hits = raycaster.intersectObjects(gallery.interactives(), true);
-        if (hits.length) {
-          cur.visible = true; cur.position.copy(hits[0].point);
-          ray.scale.z = hits[0].distance;
-          if (!best) { best = rootOf(hits[0].object); bestCtrl = c; }
-        } else { cur.visible = false; ray.scale.z = 1.5; }
-      }
-      setHovered(best, bestCtrl);
-    }
-
-    // ============================================================ VR fallback environment — designed void: gradient dome, twinkling stars, ambilight floor
-    function addEnvironment() {
-      const sky = new THREE.Mesh(new THREE.SphereGeometry(40, 48, 24), new THREE.ShaderMaterial({
-        side: THREE.BackSide, depthWrite: false,
-        uniforms: { t: { value: 0 } },
-        vertexShader: `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-        fragmentShader: `
-          uniform float t; varying vec3 vP;
-          void main(){
-            vec3 d=normalize(vP); float h=d.y*.5+.5;
-            vec3 c=mix(vec3(.008,.010,.018), vec3(.03,.06,.12), pow(h,1.6));
-            vec3 f=floor(d*160.);
-            float r=fract(sin(dot(f,vec3(12.9898,78.233,37.719)))*43758.5453);
-            float star=smoothstep(.9975,1.,r)*(.55+.45*sin(t*1.5+r*40.));
-            c+=star*(.15+h*.85);
-            gl_FragColor=vec4(c,1.);
-          }`
-      }));
-      sky.name = 'sky'; scene.add(sky); envMeshes.push(sky);
-      const floor = new THREE.Mesh(new THREE.CircleGeometry(2.4, 48), new THREE.ShaderMaterial({
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        uniforms: { color: { value: gallery.sharedColor } },   // same Color instance the ambilight lerps -> floor breathes with the video
-        vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-        fragmentShader: `uniform vec3 color; varying vec2 vUv; void main(){ float d=length(vUv-.5)*2.; gl_FragColor=vec4(color, smoothstep(1.,0.,d)*.22); }`
-      }));
-      floor.rotation.x = -Math.PI / 2; floor.position.y = -1.35;
-      scene.add(floor); envMeshes.push(floor);
-    }
-
-    // ============================================================ launch flow: clap or Launch button -> portal -> go
-    function launch() {
-      if (clapDone || !gallery) return;
-      clapDone = true;
-      redirectURL = gallery.currentLink();
-      status(`Launching ${gallery.currentTitle()}…`);
-      const s = $('clap-sound'); s.volume = 0.7; s.play().catch(() => {});
-      controllers.forEach(c => pulse(c, 1, 80));
-      gallery.playPortal(() => {
-        if (inline.active) {
-          if (redirectURL) window.open(redirectURL, '_blank');
-          clapDone = false; redirectURL = null;
-          gallery.resetAfterPortal();
-          status('Opened in a new tab — keep browsing here');
-        } else if (xrSession) setTimeout(() => { try { xrSession.end(); } catch (e) {} }, 100);
-      });
-    }
-
-    function status(msg) {
-      const el = $('status');
-      el.textContent = msg; el.style.display = 'block';
-      if (!/error|failed/i.test(msg)) setTimeout(() => el.style.display = 'none', 3500);
-      gallery?.toast(msg);   // mirrored in-world for headsets without dom-overlay
-    }
-
-    // ============================================================ render loop
-    function render(timestamp) {
-      tweenManager.update(timestamp);
-      gallery?.update(camera, timestamp);
-      updatePointers();
-      if (envMeshes[0]) envMeshes[0].material.uniforms.t.value = timestamp * 0.001;
-
-      // clap detection: two tracked inputs (controllers or hands) closing fast — grace period avoids entry-pose false positives
-      if (!clapDone && controllers.length === 2 && performance.now() - sessionStart > 1500) {
-        const [c1, c2] = controllers;
-        if (c1.userData.connected && c2.userData.connected) {
-          const p1 = new THREE.Vector3().setFromMatrixPosition(c1.matrixWorld);
-          const p2 = new THREE.Vector3().setFromMatrixPosition(c2.matrixWorld);
-          const dist = p1.distanceTo(p2);
-          if (lastClapDist !== null && lastClapT > 0) {
-            const dt = (timestamp - lastClapT) / 1000;
-            if (dt > 0) {
-              const vel = (dist - lastClapDist) / dt;
-              if (dist > 0.005 && dist < 0.12 && vel < -0.5) launch();
-            }
-          }
-          lastClapDist = dist; lastClapT = timestamp;
-        } else lastClapDist = null;
-      }
-      renderer.render(scene, camera);
-    }
-
-    // ============================================================ THE GALLERY
-    class Gallery {
-      constructor() {
-        this.mat = {}; this.order = []; this.MAXPOOL = 5;      // LRU pool: max 5 live <video>+textures at once
-        this.meta = {}; this.count = 0;
-        this.shuffled = []; this.currentIndex = 0;
-        this.isLoading = false; this.isActive = false;
-        this.sharedColor = new THREE.Color(0xffffff);
-        this.targetColor = new THREE.Color(0xffffff);
-        this.frameCounter = 0;
-        this.lastInteractionTime = Date.now();
-        this.instructionVisible = false;
-        this.toastUntil = 0;
-        this.analysisCanvas = document.createElement('canvas');
-        this.analysisCanvas.width = 32; this.analysisCanvas.height = 32;
-        this.analysisCtx = this.analysisCanvas.getContext('2d', { willReadFrequently: true });
-        this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        this.analyser = this.audioCtx.createAnalyser();
-        this.analyser.fftSize = 64;
-        this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-        this.analyser.connect(this.audioCtx.destination);
-        this.dataPromise = null;
-      }
-      resumeAudioContext() { if (this.audioCtx.state === 'suspended') this.audioCtx.resume(); }
-
-      ensureData() {
-        this.dataPromise ??= fetch('data.json').then(r => r.json()).then(list => {
-          this.count = list.length;
-          for (let i = 1; i <= this.count; i++) {
-            const entry = list.find(it => it.filename === `video${i}.mp4`) || list[i - 1];
-            this.meta[i] = { link: entry?.link || null, title: entry ? titleFrom(entry.link) : `Experience ${i}`, host: entry ? hostFrom(entry.link) : '' };
-            if (!this.mat[i]) this.mat[i] = { loaded: false };
-          }
-          if (!this.restore()) this.generateRandomSequence();
-        });
-        return this.dataPromise;
-      }
-      generateRandomSequence() {
-        this.shuffled = Array.from({ length: this.count }, (_, i) => i + 1);
-        for (let i = this.shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [this.shuffled[i], this.shuffled[j]] = [this.shuffled[j], this.shuffled[i]];
-        }
-        this.currentIndex = 0; this.persist();
-      }
-      persist() { try { sessionStorage.setItem('nxt.seq', JSON.stringify({ s: this.shuffled, i: this.currentIndex })); } catch (e) {} }
-      restore() {
-        try {
-          const d = JSON.parse(sessionStorage.getItem('nxt.seq'));
-          if (d && Array.isArray(d.s) && d.s.length === this.count) {
-            this.shuffled = d.s; this.currentIndex = Math.min(Math.max(d.i | 0, 0), this.count - 1);
-            return true;
-          }
-        } catch (e) {}
-        return false;
-      }
-      pos() { return ((this.currentIndex % this.shuffled.length) + this.shuffled.length) % this.shuffled.length; }
-      idx() { return this.shuffled[this.pos()]; }
-      currentLink() { return this.meta[this.idx()]?.link || null; }
-      currentTitle() { return this.meta[this.idx()]?.title || ''; }
-
-      // ---------- session lifecycle
-      async begin(scene, camera, kind) {
-        this.scene = scene; this.camera = camera; this.kind = kind;
-        this.isActive = false; this.instructionVisible = false;
-        try { await this.ensureData(); } catch (err) {
-          console.error('Failed to load data.json:', err);
-          return status('Error loading experience data');
-        }
-        this.panelGroup = new THREE.Group();
-        this.panelGroup.position.set(0, 0, -0.6);
-        this.scene.add(this.panelGroup);
-        this.createPanel();
-        this.createUI();
-        this.panel.add(this.createParticleEffect());
-        this.lastInteractionTime = Date.now();
-        setTimeout(() => {
-          this.isActive = true;
-          this.panel.visible = true;
-          this.animateEntrance();
-          this.showCurrent();
-        }, 400);
-      }
-      teardown() {
-        [this.titleUI, this.instrUI].forEach(u => u?.tex?.dispose());
-        this.panelGroup = this.panel = this.videoPlane = this.particles = this.logoMesh = null;
-        this.titleUI = this.instrUI = this.btnPrev = this.btnNext = this.btnLaunch = null;
-        this.isActive = false;
-      }
-      notifyInteraction() {
-        this.lastInteractionTime = Date.now();
-        if (this.instructionVisible) this.hideInstruction();
-        this.resumeAudioContext();
-      }
-      interactives() { return [this.videoPlane, this.btnPrev, this.btnNext, this.btnLaunch].filter(Boolean); }
-
-      // ---------- video pool (LRU: keeps Quest/Pico GPU memory flat over long sessions)
-      touch(i) {
-        const k = this.order.indexOf(i);
-        if (k > -1) this.order.splice(k, 1);
-        this.order.push(i);
-        while (this.order.length > this.MAXPOOL) {
-          const evict = this.order.shift();
-          if (evict === this.idx()) { this.order.push(evict); break; }
-          this.unload(evict);
-        }
-      }
-      unload(i) {
-        const m = this.mat[i];
-        if (!m?.loaded) return;
-        try { m.sourceNode?.disconnect(); } catch (e) {}
-        m.video.pause(); m.video.removeAttribute('src'); m.video.load(); m.video.remove();
-        m.texture.dispose();
-        this.mat[i] = { loaded: false };
-      }
-      loadVideo(i) {
-        if (this.mat[i].loaded) { this.touch(i); return Promise.resolve(); }
-        return new Promise(resolve => {
-          const video = document.createElement('video');
-          video.loop = true; video.playsInline = true; video.muted = false;
-          video.crossOrigin = 'anonymous';
-          video.src = `video${i}.mp4`;
-          video.preload = 'auto';
-          $('webxr-container').appendChild(video);
-          const texture = new THREE.VideoTexture(video);
-          texture.minFilter = THREE.LinearFilter; texture.magFilter = THREE.LinearFilter;
-          let sourceNode = null;
-          try { sourceNode = this.audioCtx.createMediaElementSource(video); sourceNode.connect(this.analyser); } catch (e) {}
-          this.mat[i] = { video, texture, sourceNode, loaded: true };
-          this.touch(i);
-          const done = () => resolve();
-          video.addEventListener('canplaythrough', done, { once: true });
-          video.addEventListener('error', done, { once: true });
-          setTimeout(done, 6000);   // never let a stalled file wedge the UI
-          video.load();
-        });
-      }
-      preloadAhead(n = 2) {
-        for (let k = 1; k <= n; k++) {
-          const i = this.shuffled[(this.pos() + k) % this.shuffled.length];
-          if (!this.mat[i].loaded) setTimeout(() => { if (!this.mat[i].loaded) this.loadVideo(i); }, k * 1200);
-        }
-      }
-
-      // ---------- in-world UI: title, counter, prev/next/launch, instructions
-      createUI() {
-        this.titleUI = makeTextPlane(0.92, 0.15, 1024, 168);
-        this.titleUI.mesh.position.set(0, -0.36, 0.02);
-        this.panelGroup.add(this.titleUI.mesh);
-
-        this.btnPrev = makeButton('‹', 0.12, 0.08, 96, () => { this.notifyInteraction(); this.step(-1); });
-        this.btnPrev.position.set(-0.30, -0.50, 0.02);
-        this.btnNext = makeButton('›', 0.12, 0.08, 96, () => { this.notifyInteraction(); this.step(1); });
-        this.btnNext.position.set(0.30, -0.50, 0.02);
-        this.btnLaunch = makeButton('Launch  ↗', 0.30, 0.09, 52, () => { this.notifyInteraction(); launch(); }, 1.18);
-        this.btnLaunch.position.set(0, -0.50, 0.02);
-        this.panelGroup.add(this.btnPrev, this.btnNext, this.btnLaunch);
-
-        this.instrUI = makeTextPlane(0.85, 0.09, 1024, 108);
-        this.instrUI.mesh.material.opacity = 0;
-        this.instrUI.mesh.position.set(0, -0.64, 0.02);
-        this.panelGroup.add(this.instrUI.mesh);
-      }
-      drawTitle() {
-        const { ctx, canvas, tex } = this.titleUI, m = this.meta[this.idx()];
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 8;
-        ctx.font = '600 64px "Helvetica Neue", Arial, sans-serif'; ctx.fillStyle = '#fff';
-        let t = m.title;
-        while (ctx.measureText(t).width > 940 && t.length > 4) t = t.slice(0, -2);
-        if (t !== m.title) t += '…';
-        ctx.fillText(t, 512, 56);
-        ctx.font = '300 30px "Helvetica Neue", Arial, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.55)';
-        ctx.fillText(`${m.host}    ·    ${String(this.pos() + 1).padStart(2, '0')} / ${this.count}`, 512, 124);
-        tex.needsUpdate = true;
-      }
-      setInstruction(text) {
-        const { ctx, canvas, tex } = this.instrUI;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.font = '300 36px "Helvetica Neue", Arial, sans-serif';
-        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 4;
-        ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-        tex.needsUpdate = true;
-      }
-      showInstruction() {
-        if (this.instructionVisible || !this.instrUI) return;
-        this.instructionVisible = true;
-        tweenManager.add(new Tween(this.instrUI.mesh.material, 'opacity', this.instrUI.mesh.material.opacity, 1, 800, Tween.easeInOutSine));
-      }
-      hideInstruction() {
-        if (!this.instructionVisible || !this.instrUI) return;
-        this.instructionVisible = false;
-        tweenManager.add(new Tween(this.instrUI.mesh.material, 'opacity', this.instrUI.mesh.material.opacity, 0, 400, Tween.easeInOutSine));
-      }
-      toast(msg) {
-        if (!this.instrUI) return;
-        this.setInstruction(msg);
-        this.showInstruction();
-        this.toastUntil = Date.now() + 3200;
-      }
-
-      // ---------- particles (audio-reactive flow field, ambilight-tinted)
-      createParticleEffect() {
-        const N = 400, geo = new THREE.BufferGeometry();
-        const pos = new Float32Array(N * 3), org = new Float32Array(N * 3), size = new Float32Array(N), phase = new Float32Array(N);
-        const W = 0.7, H = 0.5, hw = W / 2, hh = H / 2, spread = 0.15;
-        for (let i = 0; i < N; i++) {
-          let x, y; const side = Math.floor(Math.random() * 4);
-          if (side === 0) { x = (Math.random() - .5) * W; y = hh + Math.random() * spread; }
-          else if (side === 1) { x = (Math.random() - .5) * W; y = -hh - Math.random() * spread; }
-          else if (side === 2) { x = -hw - Math.random() * spread; y = (Math.random() - .5) * H; }
-          else { x = hw + Math.random() * spread; y = (Math.random() - .5) * H; }
-          const z = -0.05 - Math.random() * 0.3;
-          pos.set([x, y, z], i * 3); org.set([x, y, z], i * 3);
-          size[i] = 0.005 + Math.random() * 0.02; phase[i] = Math.random() * Math.PI * 2;
-        }
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geo.setAttribute('originalPosition', new THREE.BufferAttribute(org, 3));
-        geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
-        geo.setAttribute('phase', new THREE.BufferAttribute(phase, 1));
-        const mat = new THREE.ShaderMaterial({
-          uniforms: { time: { value: 0 }, color: { value: this.sharedColor }, audioLevel: { value: 0 } },
-          vertexShader: `
-            attribute vec3 originalPosition; attribute float size; attribute float phase;
-            uniform float time; uniform float audioLevel; varying float vAlpha;
-            void main(){
-              vec3 pos=originalPosition;
-              float st=time*.2;
-              float fx=sin(pos.y*5.+st+phase)*cos(pos.z*3.+st);
-              float fy=cos(pos.x*5.+st+phase)*sin(pos.z*3.+st);
-              float fz=sin(pos.x*3.+st)*cos(pos.y*3.+st);
-              float energy=.02+audioLevel*.08;
-              pos+=vec3(fx,fy,fz)*energy;
-              pos+=normalize(pos)*audioLevel*.05;
-              float edgeFade=smoothstep(.5,.2,length(pos.xy));
-              vAlpha=(.3+.7*sin(time+phase))*edgeFade*(.3+.7*audioLevel);
-              vec4 mv=modelViewMatrix*vec4(pos,1.);
-              gl_PointSize=size*(1.+audioLevel)*(400./-mv.z);
-              gl_Position=projectionMatrix*mv;
-            }`,
-          fragmentShader: `
-            uniform vec3 color; varying float vAlpha;
-            void main(){
-              float r=length(gl_PointCoord.xy-.5);
-              float a=smoothstep(.5,0.,r);
-              if(a<.01) discard;
-              gl_FragColor=vec4(mix(color,vec3(1.),a*.5), a*vAlpha);
-            }`,
-          transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
-        });
-        this.particles = new THREE.Points(geo, mat);
-        return this.particles;
-      }
-
-      // ---------- the panel (kept: SDF corners, glass rim, fresnel, ambilight glow, depth walls)
-      createPanel() {
-        const panel = new THREE.Group();
-        const W = 0.7, H = 0.5, BEVEL = 0.2;
-        const glow = this.createGlowEffect(W, H); panel.add(glow);
-        this.createDepthFrame(panel, W, H, BEVEL);
-
-        const logoTex = new THREE.TextureLoader().load('icon2.png');
-        logoTex.colorSpace = THREE.SRGBColorSpace;
-        this.logoMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.12),
-          new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, opacity: 0 }));
-        this.logoMesh.position.set(0, H / 2 + 0.15, -0.1);
-        panel.add(this.logoMesh);
-
-        const videoMaterial = new THREE.ShaderMaterial({
-          uniforms: {
-            videoTexture: { value: null },
-            cornerRadius: { value: 0.08 },
-            dimensions: { value: new THREE.Vector2(W, H) },
-            glowColor: { value: this.sharedColor }
-          },
-          vertexShader: `
-            varying vec2 vUv; varying vec3 vViewPosition; varying vec3 vNormal;
-            void main(){
-              vUv=uv;
-              vec4 mv=modelViewMatrix*vec4(position,1.);
-              vViewPosition=-mv.xyz; vNormal=normalize(normalMatrix*normal);
-              gl_Position=projectionMatrix*mv;
-            }`,
-          fragmentShader: `
-            uniform sampler2D videoTexture; uniform float cornerRadius;
-            uniform vec2 dimensions; uniform vec3 glowColor;
-            varying vec2 vUv; varying vec3 vViewPosition; varying vec3 vNormal;
-            float roundedBoxSDF(vec2 p, vec2 b, float r){ vec2 q=abs(p)-b+r; return min(max(q.x,q.y),0.)+length(max(q,0.))-r; }
-            void main(){
-              vec2 coords=(vUv-.5)*dimensions;
-              float d=roundedBoxSDF(coords, dimensions*.5, cornerRadius);
-              float e=fwidth(d);
-              float alpha=1.-smoothstep(-e,e,d);
-              if(alpha<.01) discard;
-              vec4 video=texture2D(videoTexture,vUv);
-              float border=1.-smoothstep(0.,.003,abs(d+.003));
-              vec3 borderColor=mix(vec3(1.),glowColor,.5);
-              vec3 viewDir=normalize(vViewPosition);
-              vec3 ref=reflect(-viewDir,vNormal);
-              float reflection=smoothstep(-.2,.3,ref.y)*.15;
-              vec3 c=video.rgb + vec3(.9,.95,1.)*reflection + borderColor*border*.8;
-              c*=1.-dot(vUv-.5,vUv-.5)*.5;
-              gl_FragColor=vec4(c,alpha);
-            }`,
-          transparent: true, side: THREE.DoubleSide
-        });
-        this.videoPlane = new THREE.Mesh(new THREE.PlaneGeometry(W, H), videoMaterial);
-        this.videoPlane.position.z = -BEVEL;
-        this.videoPlane.userData = { onClick: () => { this.notifyInteraction(); this.step(1); }, hoverable: true, baseScale: 1, hoverScale: 1.015 };
-        panel.add(this.videoPlane);
-
-        this.panelGroup.add(panel);
-        this.panel = panel;
-        this.panel.visible = false;
-      }
-      createDepthFrame(parent, w, h, depth) {
-        const mat = new THREE.ShaderMaterial({
-          uniforms: { color: { value: this.sharedColor } },
-          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-          fragmentShader: `
-            uniform vec3 color; varying vec2 vUv;
-            void main(){
-              float edgeFade=smoothstep(.15,.3,vUv.x)*(1.-smoothstep(.7,.85,vUv.x));
-              gl_FragColor=vec4(color, .3*edgeFade);
-            }`,
-          transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
-        });
-        const topGeo = new THREE.PlaneGeometry(w, depth), sideGeo = new THREE.PlaneGeometry(h, depth);
-        const add = (geo, x, y, ry) => {
-          const m = new THREE.Mesh(geo, mat);
-          m.position.set(x, y, -depth / 2);
-          m.rotation.x = Math.PI / 2; m.rotation.y = ry;
-          parent.add(m);
-        };
-        add(topGeo, 0, h / 2, 0); add(topGeo, 0, -h / 2, 0);
-        add(sideGeo, -w / 2, 0, Math.PI / 2); add(sideGeo, w / 2, 0, Math.PI / 2);
-      }
-      createGlowEffect(w, h) {
-        const ms = 1.2, vs = 1.02;
-        return new THREE.Mesh(new THREE.PlaneGeometry(w * ms, h * ms), new THREE.ShaderMaterial({
-          uniforms: {
-            glowColor: { value: this.sharedColor }, glowIntensity: { value: 0.4 },
-            cornerRadius: { value: 0.1 },
-            meshSize: { value: new THREE.Vector2(w * ms, h * ms) },
-            boxSize: { value: new THREE.Vector2(w * vs, h * vs) },
-            time: { value: 0 }
-          },
-          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
-          fragmentShader: `
-            uniform vec3 glowColor; uniform float glowIntensity; uniform float cornerRadius;
-            uniform vec2 meshSize; uniform vec2 boxSize; uniform float time; varying vec2 vUv;
-            float rr(vec2 p, vec2 d, float r){ vec2 q=abs(p)-d+vec2(r); return min(max(q.x,q.y),0.)+length(max(q,0.))-r; }
-            void main(){
-              vec2 p=(vUv-.5)*meshSize;
-              float dist=rr(p, boxSize*.5, cornerRadius);
-              float glow=1.-smoothstep(-.01,.08,dist);
-              float outer=1.-smoothstep(-.05,.05,dist);
-              float pulse=1.+.1*sin(time*2.);
-              glow=max(glow,outer*.5)*pulse;
-              gl_FragColor=vec4(glowColor, glow*glowIntensity);
-            }`,
-          transparent: true, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
-        }));
-      }
-
-      // ---------- browsing / animation
-      step(dir) {
-        if (this._stepping) return;
-        this._stepping = true;
-        this.animateExit(() => {
-          this.currentIndex += dir;
-          this.persist();
-          this.showCurrent();
-          this.animateEntrance();
-          this._stepping = false;
-        });
-      }
-      async showCurrent() {
-        const i = this.idx();
-        this.drawTitle();
-        await this.loadVideo(i);
-        const m = this.mat[i];
-        if (!m?.texture || !this.videoPlane) return;
-        this.videoPlane.material.uniforms.videoTexture.value = m.texture;
-        Object.entries(this.mat).forEach(([k, v]) => { if (+k !== i && v.video) { v.video.pause(); v.video.volume = 0; } });
-        const video = m.video;
-        this.currentAudio = video; this.currentVideoElement = video;
-        video.volume = 0;
-        video.play().then(() => this.fadeAudio(video, 0, 0.8, 500))
-          .catch(() => status('Tap or click once to enable audio'));
-        this.preloadAhead();
-      }
-      fadeAudio(video, from, to, duration) {
-        const t0 = Date.now();
-        const iv = setInterval(() => {
-          const p = Math.min((Date.now() - t0) / duration, 1);
-          video.volume = from + (to - from) * p;
-          if (p >= 1) clearInterval(iv);
-        }, 16);
-      }
-      animateEntrance() {
-        this.panelGroup.scale.set(0.6, 0.6, 0.6);
-        if (this.logoMesh) { this.logoMesh.material.opacity = 0; tweenManager.add(new Tween(this.logoMesh.material, 'opacity', 0, 1, 800, Tween.easeOutCubic)); }
-        this.panel.traverse(o => {
-          if (!o.material || o === this.logoMesh) return;
-          if (o.material.uniforms?.glowIntensity) o.material.uniforms.glowIntensity.value = 0;
-          else if (o.material.opacity !== undefined) o.material.opacity = 0;
-        });
-        tweenManager.add(new Tween(this.panelGroup.scale, 'x', 0.6, 1, 600, Tween.easeOutCubic));
-        tweenManager.add(new Tween(this.panelGroup.scale, 'y', 0.6, 1, 600, Tween.easeOutCubic));
-        tweenManager.add(new Tween(this.panelGroup.scale, 'z', 0.6, 1, 600, Tween.easeOutCubic));
-        this.panel.traverse(o => {
-          if (!o.material || o === this.logoMesh) return;
-          if (o.material.uniforms?.glowIntensity) tweenManager.add(new Tween(o.material.uniforms.glowIntensity, 'value', 0, 0.45, 1000, Tween.easeOutCubic));
-          else if (o.material.opacity !== undefined) tweenManager.add(new Tween(o.material, 'opacity', 0, 1, 800, Tween.easeOutCubic));
-        });
-      }
-      animateExit(onComplete) {
-        if (this.currentAudio) this.fadeAudio(this.currentAudio, this.currentAudio.volume, 0, 400);
-        tweenManager.add(new Tween(this.panelGroup.scale, 'x', this.panelGroup.scale.x, 0.6, 400, Tween.easeOutCubic));
-        tweenManager.add(new Tween(this.panelGroup.scale, 'y', this.panelGroup.scale.y, 0.6, 400, Tween.easeOutCubic, onComplete));
-        if (this.logoMesh) tweenManager.add(new Tween(this.logoMesh.material, 'opacity', this.logoMesh.material.opacity, 0, 300, Tween.easeOutCubic));
-        this.panel.traverse(o => {
-          if (!o.material || o === this.logoMesh) return;
-          if (o.material.uniforms?.glowIntensity) tweenManager.add(new Tween(o.material.uniforms.glowIntensity, 'value', o.material.uniforms.glowIntensity.value, 0, 300, Tween.easeOutCubic));
-          else if (o.material.opacity !== undefined) tweenManager.add(new Tween(o.material, 'opacity', o.material.opacity, 0, 300, Tween.easeOutCubic));
-        });
-      }
-      playPortal(onComplete) {  // the clap: pull back a beat, then blast the portal through your face
-        if (this.currentAudio) this.fadeAudio(this.currentAudio, this.currentAudio.volume, 0, 200);
-        const camPos = new THREE.Vector3(); this.camera.getWorldPosition(camPos);
-        const s0 = this.panelGroup.scale.x, z0 = this.panelGroup.position.z;
-        tweenManager.add(new Tween(this.panelGroup.scale, ['x'], s0, s0 * 0.9, 200, Tween.easeInOutSine));
-        tweenManager.add(new Tween(this.panelGroup.scale, ['y'], s0, s0 * 0.9, 200, Tween.easeInOutSine));
-        tweenManager.add(new Tween(this.panelGroup.position, ['z'], z0, z0 - 0.1, 200, Tween.easeInOutSine, () => {
-          tweenManager.add(new Tween(this.panelGroup.scale, ['x'], s0 * 0.9, s0 * 8, 500, Tween.easeInExpo));
-          tweenManager.add(new Tween(this.panelGroup.scale, ['y'], s0 * 0.9, s0 * 8, 500, Tween.easeInExpo));
-          tweenManager.add(new Tween(this.panelGroup.position, ['x'], this.panelGroup.position.x, camPos.x, 500, Tween.easeInExpo));
-          tweenManager.add(new Tween(this.panelGroup.position, ['y'], this.panelGroup.position.y, camPos.y, 500, Tween.easeInExpo));
-          tweenManager.add(new Tween(this.panelGroup.position, ['z'], this.panelGroup.position.z, camPos.z + 0.1, 500, Tween.easeInExpo, onComplete));
-          this.panel.traverse(o => {
-            if (o.material?.uniforms?.glowIntensity)
-              tweenManager.add(new Tween(o.material.uniforms.glowIntensity, 'value', o.material.uniforms.glowIntensity.value, 2, 500, Tween.easeInExpo));
-          });
-        }));
-      }
-      resetAfterPortal() {   // inline mode keeps the session alive after launching in a new tab
-        const camPos = new THREE.Vector3(); this.camera.getWorldPosition(camPos);
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).multiplyScalar(0.8);
-        this.panelGroup.position.copy(camPos).add(dir);
-        this.animateEntrance();
-        if (this.currentAudio) { this.currentAudio.volume = 0; this.fadeAudio(this.currentAudio, 0, 0.8, 600); }
-      }
-
-      // ---------- per-frame
-      update(camera, timestamp) {
-        if (!this.isActive || !this.panelGroup || !camera) return;
-        const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion).multiplyScalar(0.8);
-        const target = new THREE.Vector3().copy(camera.position).add(dir);
-        this.panelGroup.position.lerp(target, 0.05);
-        this.panelGroup.lookAt(camera.position);
-
-        const i = this.idx();
-        if (this.mat[i]?.texture) this.mat[i].texture.needsUpdate = true;
-
-        // audio-reactive
-        if (this.particles?.material.uniforms) {
-          this.analyser.getByteFrequencyData(this.dataArray);
-          let sum = 0; const low = Math.floor(this.dataArray.length / 2);
-          for (let k = 0; k < low; k++) sum += this.dataArray[k];
-          const level = (sum / low) / 255;
-          const u = this.particles.material.uniforms.audioLevel;
-          u.value += (level - u.value) * 0.1;
-          this.particles.material.uniforms.time.value = timestamp * 0.001;
-        }
-        // ambilight (glow, walls, rays, VR floor all breathe with the video)
-        this.frameCounter++;
-        if (this.frameCounter % 10 === 0 && this.currentVideoElement?.readyState >= 2) {
-          try {
-            this.analysisCtx.drawImage(this.currentVideoElement, 0, 0, 32, 32);
-            const d = this.analysisCtx.getImageData(0, 0, 32, 32).data;
-            let r = 0, g = 0, b = 0; const n = d.length / 4;
-            for (let k = 0; k < d.length; k += 4) { r += d[k]; g += d[k + 1]; b += d[k + 2]; }
-            r = (r / n) / 255; g = (g / n) / 255; b = (b / n) / 255;
-            const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
-            if (mx > mn) {
-              r = (r - mn) / (mx - mn) * 0.6 + r * 0.4;
-              g = (g - mn) / (mx - mn) * 0.6 + g * 0.4;
-              b = (b - mn) / (mx - mn) * 0.6 + b * 0.4;
-            }
-            this.targetColor.setRGB(r, g, b);
-          } catch (e) {}
-        }
-        this.sharedColor.lerp(this.targetColor, 0.03);
-        this.panel.traverse(o => { if (o.material?.uniforms?.time) o.material.uniforms.time.value = timestamp * 0.001; });
-
-        // idle coaching & toast expiry
-        if (this.instructionVisible && this.toastUntil && Date.now() > this.toastUntil) { this.toastUntil = 0; this.hideInstruction(); }
-        if (!this.instructionVisible && Date.now() - this.lastInteractionTime > 10000) {
-          this.setInstruction(
-            this.kind === 'inline' ? 'Drag to look around · Launch opens a new tab'
-            : this.currentIndex === 0 ? 'Point at ‹ › and pull the trigger — or pinch'
-            : 'Clap hands or controllers together to jump in');
-          this.toastUntil = 0;
-          this.showInstruction();
-        }
-      }
-    }
-  </script>
+  renderer.render(scene, camera);
+}
+</script>
 </body>
 </html>
